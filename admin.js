@@ -545,7 +545,7 @@ async function editarUsuario(id) {
                 }); 
                 cargarUsuarios(); 
             } else { 
-                Swal.fire('Error', 'No se pudo actualizar.', 'error'); 
+                Swal.fire('Error', 'No se pudo actualizar.', 'error'); //me
             }
         } catch (e) {
             Swal.fire('Error', 'Fallo de conexión', 'error');
