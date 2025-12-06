@@ -1,4 +1,4 @@
-const API_URL = 'https://photographers-profession-twelve-washing.trycloudflare.com';
+const API_URL = 'https://budapest-caution-authors-sacrifice.trycloudflare.com';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
