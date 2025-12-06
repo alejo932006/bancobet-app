@@ -41,6 +41,7 @@ function cargarVista(vista) {
     if (vista === 'dashboard') cargarResumen();
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'movimientos') cargarMovimientosGlobales();
+    if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); }
 }
 
 // [NUEVO] Función para cerrar sesión explícitamente
@@ -553,8 +554,6 @@ async function editarUsuario(id) {
     }
 }
 
-
-if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); }
 
 async function cargarConfigWhatsapp() {
     try {
