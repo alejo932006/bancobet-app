@@ -1,6 +1,6 @@
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'http://localhost:3000/api',
+    apiURL: 'https://photographers-profession-twelve-washing.trycloudflare.com',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };

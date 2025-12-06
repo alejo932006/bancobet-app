@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/admin';
+const API_URL = 'https://photographers-profession-twelve-washing.trycloudflare.com';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
