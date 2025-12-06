@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Saldo - Cliente</title>
+    <script>
+        const usuarioSesion = localStorage.getItem('usuario_banco');
+        if (!usuarioSesion) window.location.href = 'login.html';
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/locale/es.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+
+
+    <style>
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* Ocultar scrollbar pero permitir scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
+
+    <!-- Header Fijo -->
+    <nav class="bg-blue-900 text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="flex justify-between items-center max-w-2xl mx-auto">
+            <div class="flex items-center">
+                <button onclick="cerrarSesion()" class="mr-3 text-blue-300 hover:text-white"><i class="fas fa-sign-out-alt"></i></button>
+                <h1 class="text-sm font-bold truncate max-w-[150px]" id="userNombre">Cargando...</h1>
+            </div>
+            <div class="flex items-center bg-blue-800 px-3 py-1 rounded-full border border-blue-700">
+                <span class="text-xs opacity-75 mr-2">Saldo:</span>
+                <span id="userSaldo" class="font-mono font-bold text-sm">...</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto p-4">
+        
+        <!-- VISTA 1: NUEVA OPERACIÓN (ID: vista-operar) -->
+        <div id="vista-operar" class="fade-in">
+            <!-- Selector de Operación -->
+            <section id="seccion-selector" class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4 hidden animate-fade">
+    
+                <div class="flex items-center mb-2 pb-2 border-b border-gray-100">
+                    <button onclick="resetearVista()" class="mr-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div>
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Estás en:</p>
+                        <h3 class="text-sm font-bold text-blue-900 leading-none">Operación</h3>
+                    </div>
+                </div>
+            
+                <div class="relative">
+                    <select id="tipoOperacion" class="block w-full bg-gray-50 border-none text-gray-800 text-sm font-bold py-2 px-1 focus:ring-0 cursor-pointer">
+                        <option value="" disabled>-- Cambiar Operación --</option>
+                        <optgroup label="Entradas (+)">
+                            <option value="RETIRO">📥 Retiro de Casa de Apuestas</option>
+                            <option value="ABONO_CAJA">💰 Abono a Caja</option>
+                        </optgroup>
+                        <optgroup label="Salidas (-)">
+                            <option value="RECARGA">🎮 Recarga Betplay</option>
+                            <option value="TRASLADO">💸 Traslado a Usuario</option>
+                            <option value="CONSIGNACION">🏦 Solicitar Consignación</option>
+                        </optgroup>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-blue-900">
+                        <i class="fas fa-exchange-alt text-xs opacity-50"></i>
+                    </div>
+                </div>
+            </section>
+
+            <div id="panel-accesos-rapidos" class="grid grid-cols-2 gap-4 mt-6 animate-fade">
+    
+                <div class="col-span-2 mb-2">
+                    <h2 class="text-xl font-bold text-blue-900">¿Qué deseas hacer hoy?</h2>
+                    <p class="text-sm text-gray-500">Selecciona una operación para continuar:</p>
+                </div>
+            
+    
+                <button onclick="seleccionarRapido('RETIRO')" class="bg-white p-6 rounded-xl shadow-sm border border-green-100 hover:border-green-500 hover:shadow-md transition group text-center">
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-green-600 transition">
+                        <i class="fas fa-arrow-down text-green-600 text-xl group-hover:text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-700 text-sm">Retirar</h3>
+                    <p class="text-xs text-gray-400 mt-1">De Casino</p>
+                </button>
+            
+                <button onclick="seleccionarRapido('RECARGA')" class="bg-white p-6 rounded-xl shadow-sm border border-red-100 hover:border-red-500 hover:shadow-md transition group text-center">
+                    <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-red-600 transition">
+                        <i class="fas fa-gamepad text-red-600 text-xl group-hover:text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-700 text-sm">Recargar</h3>
+                    <p class="text-xs text-gray-400 mt-1"></p>
+                </button>
+            
+                <button onclick="seleccionarRapido('CONSIGNACION')" class="bg-white p-4 rounded-xl shadow-sm border border-orange-100 hover:border-orange-500 transition flex items-center justify-center space-x-2">
+                    <i class="fas fa-university text-orange-500"></i>
+                    <span class="text-xs font-bold text-gray-600 uppercase">Solicitar Consignación</span>
+                </button>
+                
+                <button onclick="seleccionarRapido('ABONO_CAJA')" class="bg-white p-4 rounded-xl shadow-sm border border-green-100 hover:border-green-500 transition flex items-center justify-center space-x-2">
+                    <i class="fas fa-donate text-green-600"></i>
+                    <span class="text-xs font-bold text-gray-600 uppercase">Abono Caja</span>
+                </button>
+
+                <button onclick="seleccionarRapido('TRASLADO')" class="col-span-2 bg-gradient-to-r from-blue-900 to-blue-800 p-4 rounded-xl shadow-lg text-white flex items-center justify-between group hover:scale-[1.02] transition transform">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mr-3">
+                            <i class="fas fa-exchange-alt text-white"></i>
+                        </div>
+                        <div class="text-left">
+                            <h3 class="font-bold text-sm">Traslado Saldo</h3>
+                            <p class="text-xs text-blue-200">Transferencia entre miembros de Bancobet</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-white/50 group-hover:text-white transition"></i>
+                </button>
+
+            </div>
+
+            <!-- Formulario Dinámico (Tu código existente simplificado para el ejemplo) -->
+            <form id="formTransaccion" class="bg-white rounded-xl shadow-lg p-5 hidden border-t-4 border-blue-900">
+                <div class="flex justify-between items-center mb-6 pb-2 border-b">
+                    <h2 id="formTitulo" class="text-lg font-bold">Detalles</h2>
+                    <i id="formIcono" class="fas fa-edit text-gray-400"></i>
+                </div>
+
+                <!-- Monto -->
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monto</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 font-bold">$</span>
+                        <input type="number" id="monto" class="pl-7 w-full p-3 rounded-lg border bg-gray-50 focus:bg-white focus:border-blue-500 outline-none font-mono text-lg" placeholder="0" required>
+                    </div>
+                </div>
+                
+                <div id="campo-casino" class="mb-4 hidden">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Elige Plataforma</label>
+                    <div class="relative">
+                        <select id="selector_casino" onchange="actualizarCamposCasino()" class="block w-full p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900 font-bold focus:outline-none focus:border-blue-500 appearance-none">
+                            <option value="BETPLAY">Betplay</option>
+                            <option value="KAIROPLAY">Kairoplay</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-blue-900"><i class="fas fa-chevron-down"></i></div>
+                    </div>
+                </div>
+                
+                <div id="campos-retiro" class="campos-grupo hidden space-y-3">
+    
+                    <div id="grupo-betplay-retiro" class="space-y-3 animate-fade">
+                        <input type="text" id="cc_casino" placeholder="C.C registrada en Casino" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                        <input type="text" id="nombre_cedula" placeholder="Nombre del titular" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                        <input type="number" id="pin_retiro" placeholder="PIN de Retiro" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                    </div>
+                
+                    <div id="grupo-kairo-retiro" class="hidden animate-fade">
+                        <label class="block text-xs font-bold text-blue-900 uppercase mb-1">ID de Transferencia Kairo</label>
+                        <input type="text" id="id_kairo_retiro" placeholder="Ej: 59302..." class="w-full p-3 border-2 border-blue-100 rounded focus:border-blue-500 outline-none font-mono text-blue-900 font-bold">
+                        <p class="text-[10px] text-gray-400 mt-1">Ingresa el código de la transferencia generado en Kairoplay.</p>
+                    </div>
+                </div>
+                
+                <div id="campos-abono-caja" class="campos-grupo hidden space-y-3">
+                    <div class="text-xs text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
+                        <i class="fas fa-camera mr-1"></i> Adjuntar comprobante bancario
+                    </div>
+                    <input type="file" id="comprobante_archivo" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+                
+                <div id="campos-recarga" class="campos-grupo hidden space-y-3">
+    
+                    <div id="grupo-betplay-recarga" class="space-y-3 animate-fade">
+                        <input type="number" id="cedula_recarga" placeholder="Cédula para recargar" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                    </div>
+                
+                    <div id="grupo-kairo-recarga" class="hidden animate-fade">
+                        <label class="block text-xs font-bold text-blue-900 uppercase mb-1">ID Usuario / Transacción</label>
+                        <input type="text" id="id_kairo_recarga" placeholder="ID de Kairoplay" class="w-full p-3 border-2 border-blue-100 rounded focus:border-blue-500 outline-none font-mono text-blue-900 font-bold">
+                    </div>
+                </div>
+                
+                <div id="campos-traslado" class="campos-grupo hidden space-y-3">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Destinatario</label>
+                    <select id="cliente_destino" class="w-full p-3 border rounded bg-white focus:border-blue-500 outline-none">
+                        <option value="">Cargando usuarios...</option>
+                    </select>
+                </div>
+                
+                <div id="campos-consignacion" class="campos-grupo hidden space-y-3">
+                    <input type="text" id="llave_bre_b" placeholder="Llave BRE-B" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                    <input type="text" id="titular_cuenta" placeholder="Titular de la cuenta" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-gray-100">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID Referencia</label>
+                    <input type="text" id="id_transaccion" class="w-full bg-gray-100 text-gray-500 font-mono text-sm p-2 rounded cursor-not-allowed border-none" readonly>
+                </div>
+                
+                <button type="submit" class="mt-6 w-full bg-blue-900 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-blue-800 transform active:scale-95 transition-all">Confirmar Operación</button>
+            </form>
+            
+            <div id="mensajeExito" class="hidden mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow">
+                <p class="font-bold">¡Enviado!</p> <p class="text-sm">ID: <span id="id_confirmacion"></span></p>
+            </div>
+        </div>
+
+        <!-- VISTA 2: HISTORIAL (ID: vista-historial) -->
+        <div id="vista-historial" class="hidden fade-in">
+            <div class="flex justify-between items-center mb-4 px-2">
+                <h2 class="text-xl font-bold text-gray-800">Mis Movimientos</h2>
+                <!-- Botón recargar pequeño -->
+                <button onclick="cargarHistorial()" class="text-blue-600 text-sm hover:underline"><i class="fas fa-sync-alt mr-1"></i>Actualizar</button>
+            </div>
+            
+            <!-- BARRA DE FILTROS (NUEVO) -->
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-4 mx-1">
+                <div class="flex space-x-2 items-end">
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Desde</label>
+                        <input type="date" id="filtro_inicio" class="w-full text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600 focus:outline-none focus:border-blue-400">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Hasta</label>
+                        <input type="date" id="filtro_fin" class="w-full text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600 focus:outline-none focus:border-blue-400">
+                    </div>
+                    <div>
+                        <button onclick="aplicarFiltro()" class="h-[34px] w-[34px] bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center justify-center transition-colors">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aquí se inyectarán las tarjetas vía JS -->
+            <div id="lista-historial" class="space-y-3 pb-4">
+                <!-- Estado de carga inicial -->
+                <div class="text-center py-10 text-gray-400">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+                    <p>Cargando movimientos...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- BARRA DE NAVEGACIÓN INFERIOR (Móvil) -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center p-2 shadow-lg z-50">
+        <button onclick="cambiarVista('operar')" id="btn-nav-operar" class="flex flex-col items-center p-2 text-blue-900 w-full transition-colors">
+            <i class="fas fa-plus-circle text-2xl mb-1"></i>
+            <span class="text-xs font-bold">Operar</span>
+        </button>
+        <button onclick="cambiarVista('historial')" id="btn-nav-historial" class="flex flex-col items-center p-2 text-gray-400 w-full transition-colors hover:text-blue-500">
+            <i class="fas fa-history text-2xl mb-1"></i>
+            <span class="text-xs font-bold">Historial</span>
+        </button>
+    </div>
+
+            <!-- [NUEVO] MODAL DETALLE DE TRANSACCIÓN -->
+            <div id="modal-detalle-tx" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100">
+                    <!-- Header -->
+                    <div class="bg-blue-900 text-white p-6 flex justify-between items-center">
+                        <div>
+                            <h3 class="text-xl font-bold" id="modal-titulo">Detalle Transacción</h3>
+                            <p class="text-blue-200 text-xs mt-1 font-mono" id="modal-id">ID: ...</p>
+                        </div>
+                        <button onclick="document.getElementById('modal-detalle-tx').classList.add('hidden')" class="text-white hover:text-gray-300 focus:outline-none">
+                            <i class="fas fa-times text-2xl"></i>
+                        </button>
+                    </div>
+                    <!-- Body -->
+                    <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <!-- Estado y Monto -->
+                        <div class="flex justify-between items-center border-b pb-4">
+                            <div>
+                                <span id="modal-estado" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gray-100 text-gray-600">...</span>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-500 uppercase">Monto</p>
+                                <p class="text-2xl font-bold text-gray-800" id="modal-monto">...</p>
+                            </div>
+                        </div>
+                        <!-- Datos Básicos -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase font-bold">Fecha</p>
+                                <p class="text-sm text-gray-800" id="modal-fecha">...</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase font-bold">Cliente</p>
+                                <p class="text-sm text-gray-800" id="modal-cliente">...</p>
+                                <p class="text-xs text-gray-400" id="modal-cedula">...</p>
+                            </div>
+                        </div>
+                        <!-- Datos Específicos (Dinámicos) -->
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <h4 class="text-xs font-bold text-blue-900 uppercase mb-3 border-b border-gray-200 pb-1">Detalles de Operación</h4>
+                            <div id="modal-contenido-dinamico" class="space-y-2 text-sm text-gray-700"></div>
+                        </div>
+                        <!-- Comprobante -->
+                        <div id="modal-comprobante-container" class="hidden">
+                            <p class="text-xs font-bold text-gray-500 uppercase mb-2">Comprobante Adjunto</p>
+                            <a id="modal-comprobante-link" href="#" target="_blank" class="block w-full">
+                                <img id="modal-comprobante-img" src="" class="w-full h-48 object-cover rounded-lg border hover:opacity-90 transition" alt="Comprobante">
+                            </a>
+                        </div>
+                    </div>
+                    <!-- Footer -->
+                    <div class="bg-gray-50 p-4 border-t text-right">
+                        <button onclick="document.getElementById('modal-detalle-tx').classList.add('hidden')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+
+    <!-- Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const usuario = JSON.parse(localStorage.getItem('usuario_banco'));
+                if (usuario) {
+                    const primerNombre = usuario.nombre_completo.split(' ')[0];
+                    document.getElementById('userNombre').innerHTML = `<i class="fas fa-user mr-2 text-blue-300"></i>${primerNombre}`;
+                    const saldoFormateado = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(usuario.saldo_actual);
+                    document.getElementById('userSaldo').innerText = saldoFormateado;
+                }
+            } catch (e) { console.error("Error al leer datos", e); }
+        });
+        function cerrarSesion() {
+            if(confirm('¿Estás seguro de que deseas salir?')) {
+                localStorage.removeItem('usuario_banco');
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
+
+    <script src="app.js"></script> 
+</body>
+</html>

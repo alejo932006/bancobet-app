@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banco Bet - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script>
+        const usuarioSesion = JSON.parse(localStorage.getItem('usuario_banco'));
+        // Si no hay usuario O el usuario NO es admin, patearlo fuera.
+        if (!usuarioSesion || usuarioSesion.rol !== 'admin') {
+            window.location.href = 'login.html';
+        }
+    </script>
+</head>
+<body class="bg-gray-100 font-sans h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- [NUEVO] HEADER MÓVIL (Solo visible en pantallas pequeñas) -->
+    <header class="bg-blue-900 text-white p-4 flex justify-between items-center md:hidden shadow-md z-20 shrink-0">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-university text-xl"></i>
+            <span class="font-bold text-lg">Banco Bet</span>
+        </div>
+        <button onclick="toggleSidebar()" class="text-white focus:outline-none p-2 rounded hover:bg-blue-800 transition">
+            <i class="fas fa-bars text-2xl"></i>
+        </button>
+    </header>
+
+    <!-- SIDEBAR (Adaptable: Fijo en PC, Deslizable en Móvil) -->
+    <!-- Clases clave: 
+         - md:static md:translate-x-0: En PC se queda quieto y visible.
+         - fixed inset-y-0: En móvil flota sobre todo.
+         - -translate-x-full: Por defecto oculto a la izquierda en móvil.
+    -->
+    <aside id="sidebar" class="bg-blue-900 text-white w-64 flex flex-col shadow-2xl 
+               fixed inset-y-0 left-0 z-30 transform -translate-x-full transition-transform duration-300 ease-in-out
+               md:translate-x-0 md:static md:shadow-none">
+        
+        <!-- Logo (Solo visible en PC) -->
+        <div class="p-6 text-center border-b border-blue-800 hidden md:block">
+            <i class="fas fa-university text-3xl mb-2"></i>
+            <h1 class="text-xl font-bold">Banco Bet</h1>
+            <p class="text-xs text-blue-300">Panel Administrativo</p>
+        </div>
+
+        <!-- Botón cerrar menú (Solo móvil) -->
+        <div class="p-4 flex justify-between items-center border-b border-blue-800 md:hidden bg-blue-950">
+            <span class="font-bold">Menú</span>
+            <button onclick="toggleSidebar()" class="text-blue-300 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <button onclick="navegar('dashboard')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-chart-line w-8"></i> Resumen
+            </button>
+            <button onclick="navegar('movimientos')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-exchange-alt w-8"></i> Movimientos
+            </button>
+            <button onclick="navegar('usuarios')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-users w-8"></i> Usuarios
+            </button>
+            <button onclick="navegar('config')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-cogs w-8"></i> Configuración
+            </button>
+        </nav>
+        <div class="p-4 border-t border-blue-800">
+            <button onclick="window.location.href='login.html'" class="w-full text-center text-sm text-blue-300 hover:text-white p-2">
+                <i class="fas fa-sign-out-alt mr-1"></i> Cerrar Sesión
+            </button>
+        </div>
+    </aside>
+
+    <!-- OVERLAY OSCURO (Fondo al abrir menú en móvil) -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden transition-opacity"></div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 relative w-full">
+        
+        <!-- VISTA: DASHBOARD -->
+        <div id="vista-dashboard" class="vista-seccion animate-fade">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Resumen del Negocio</h2>
+                    <p class="text-xs text-gray-500" id="dash-rango-texto">Mostrando actividad de hoy</p>
+                </div>
+                
+                <div class="flex bg-white p-2 rounded-lg shadow-sm border border-gray-200 items-center gap-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase">Desde</label>
+                        <input type="date" id="dash-inicio" class="text-xs border rounded p-1 text-gray-700 focus:outline-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase">Hasta</label>
+                        <input type="date" id="dash-fin" class="text-xs border rounded p-1 text-gray-700 focus:outline-blue-500">
+                    </div>
+                    <button onclick="cargarResumen()" class="bg-blue-900 text-white px-3 py-2 rounded text-xs font-bold hover:bg-blue-800 transition h-full flex items-center">
+                        <i class="fas fa-filter mr-1"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- FILA 1: KPIs PRINCIPALES -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- Pasivo (Deuda con clientes) -->
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-600 relative overflow-hidden">
+                    <div class="flex justify-between items-center relative z-10">
+                        <div>
+                            <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo Clientes (Pasivo)</p>
+                            <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-total-banco">$ 0</h3>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full text-blue-600"><i class="fas fa-wallet text-2xl"></i></div>
+                    </div>
+                </div>
+
+                <!-- Ganancias (Comisiones) -->
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-green-500 relative overflow-hidden">
+                    <div class="flex justify-between items-center relative z-10">
+                        <div>
+                            <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Comisiones por retiro</p>
+                            <h3 class="text-3xl font-bold text-green-600 mt-1" id="dash-ganancias">$ 0</h3>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full text-green-600"><i class="fas fa-chart-line text-2xl"></i></div>
+                    </div>
+                </div>
+
+                <!-- Usuarios -->
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-purple-500 cursor-pointer hover:bg-purple-50 transition" onclick="cargarVista('usuarios')">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Usuarios Activos</p>
+                            <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-usuarios">0</h3>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full text-purple-600"><i class="fas fa-users text-2xl"></i></div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="text-lg font-bold text-gray-700 mb-4 px-1">Volumen de Operaciones</h3>
+
+            <!-- FILA 2: DESGLOSE POR TIPO -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <!-- Entradas -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <p class="text-xs text-green-600 font-bold uppercase mb-1"><i class="fas fa-arrow-down mr-1"></i> Retiros (Ingresos)</p>
+                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-retiros">$ 0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <p class="text-xs text-green-600 font-bold uppercase mb-1"><i class="fas fa-donate mr-1"></i> Abonos Caja</p>
+                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-abonos">$ 0</p>
+                </div>
+
+                <!-- Salidas -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <p class="text-xs text-red-500 font-bold uppercase mb-1"><i class="fas fa-gamepad mr-1"></i> Recargas</p>
+                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-recargas">$ 0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <p class="text-xs text-orange-500 font-bold uppercase mb-1"><i class="fas fa-university mr-1"></i> Consignaciones</p>
+                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-consignaciones">$ 0</p>
+                </div>
+            </div>
+            
+            <!-- TARJETA ANCHA: TRASLADOS -->
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
+                <div>
+                    <p class="text-xs text-blue-800 font-bold uppercase">Volumen de Traslados Internos</p>
+                    <p class="text-sm text-blue-600">Movimiento entre usuarios de la plataforma</p>
+                </div>
+                <p class="text-2xl font-mono font-bold text-blue-900" id="dash-traslados">$ 0</p>
+            </div>
+
+            <h3 class="text-lg font-bold text-gray-700 mb-4 px-1 mt-8 flex items-center gap-2">
+                <i class="fas fa-gamepad text-indigo-600"></i> Resumen Kairoplay
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade">
+                
+                <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-green-400">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Retiros (Entradas)</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-retiros">$ 0</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">Usuarios retirando de Kairo</p>
+                        </div>
+                        <div class="bg-green-50 p-2 rounded-lg text-green-500">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-red-400">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Recargas (Salidas)</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-recargas">$ 0</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">Usuarios cargando a Kairo</p>
+                        </div>
+                        <div class="bg-red-50 p-2 rounded-lg text-red-500">
+                            <i class="fas fa-upload"></i>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="bg-indigo-50 p-5 rounded-xl shadow-sm border border-indigo-100">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-indigo-800 font-bold uppercase tracking-wider">Flujo Neto Kairo</p>
+                            <h3 class="text-2xl font-bold text-indigo-900 mt-1" id="kairo-saldo">$ 0</h3>
+                            <p class="text-[10px] text-indigo-600 mt-1">Diferencia (Entradas - Salidas)</p>
+                        </div>
+                        <div class="bg-white p-2 rounded-lg text-indigo-600 shadow-sm">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA: MONITOR DE MOVIMIENTOS GLOBALES -->
+        <div id="vista-movimientos" class="vista-seccion hidden animate-fade">
+            <div class="flex justify-between items-center mb-4 md:mb-6">
+                <h2 class="text-xl md:text-2xl font-bold text-gray-800">Monitor Global</h2>
+                <button onclick="cargarMovimientosGlobales()" class="text-blue-600 hover:underline text-sm bg-white px-3 py-1 rounded shadow-sm"><i class="fas fa-sync-alt mr-1"></i> <span class="hidden md:inline">Refrescar</span></button>
+            </div>
+
+            <!-- FILTROS RESPONSIVOS -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-end border border-gray-200">
+                <div class="w-full md:w-auto grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Desde</label>
+                        <input type="date" id="global-filtro-inicio" class="border p-2 rounded text-sm bg-gray-50 w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Hasta</label>
+                        <input type="date" id="global-filtro-fin" class="border p-2 rounded text-sm bg-gray-50 w-full">
+                    </div>
+                </div>
+                <div class="w-full">
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Búsqueda</label>
+                    <input type="text" id="global-filtro-texto" class="border p-2 rounded text-sm w-full bg-gray-50" placeholder="Nombre, Cédula o ID...">
+                </div>
+                <button onclick="cargarMovimientosGlobales()" class="bg-blue-900 text-white px-6 py-2 rounded hover:bg-blue-800 h-[38px] shadow w-full md:w-auto">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+
+            <!-- TABLA CON SCROLL HORIZONTAL (Importante para móvil) -->
+            <div class="bg-white rounded-xl shadow-md overflow-x-auto">
+                <table class="min-w-full leading-normal">
+                    <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-5 py-3 text-left whitespace-nowrap">Fecha</th>
+                            <th class="px-5 py-3 text-left">Cliente</th>
+                            <th class="px-5 py-3 text-left">Operación</th>
+                            <th class="px-5 py-3 text-right">Monto</th>
+                            <th class="px-5 py-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-movimientos-globales" class="text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VISTA: USUARIOS -->
+        <div id="vista-usuarios" class="vista-seccion hidden animate-fade">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl md:text-2xl font-bold text-gray-800">Usuarios</h2>
+                <button onclick="abrirModalUsuario()" class="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800 shadow text-sm font-bold">
+                    <i class="fas fa-plus mr-1"></i> Nuevo
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-md overflow-x-auto">
+                <table class="min-w-full leading-normal">
+                    <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-5 py-3 text-left">Nombre</th>
+                            <th class="px-5 py-3 text-left">Cédula</th>
+                            <th class="px-5 py-3 text-right">Saldo</th>
+                            <th class="px-5 py-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-usuarios" class="text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VISTA: DETALLE HISTORIAL -->
+        <div id="vista-detalle-usuario" class="vista-seccion hidden animate-fade absolute inset-0 bg-gray-100 p-4 md:p-8 z-10 overflow-y-auto">
+            <div class="flex flex-col md:flex-row md:items-center mb-6 gap-4">
+                <button onclick="cargarVista('usuarios')" class="bg-white p-2 rounded-full shadow hover:bg-gray-200 text-gray-600 w-10 h-10 flex items-center justify-center">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-800">Historial: <span id="detalle-nombre-usuario" class="text-blue-600 block md:inline">...</span></h2>
+                </div>
+            </div>
+
+            <!-- Filtros Detalle -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-end">
+                <div class="grid grid-cols-2 gap-4 w-full md:w-auto">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Desde</label>
+                        <input type="date" id="hist-filtro-inicio" class="border p-2 rounded text-sm w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Hasta</label>
+                        <input type="date" id="hist-filtro-fin" class="border p-2 rounded text-sm w-full">
+                    </div>
+                </div>
+                <button onclick="filtrarHistorialDetalle()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200 h-[38px] w-full md:w-auto">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50 text-gray-600 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-5 py-3 text-left whitespace-nowrap">Fecha</th>
+                            <th class="px-5 py-3 text-left">Tipo</th>
+                            <th class="px-5 py-3 text-left">Monto</th>
+                            <th class="px-5 py-3 text-left">Detalle</th>
+                            <th class="px-5 py-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-detalle-historial" class="text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="vista-config" class="vista-seccion hidden animate-fade">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Configuración de Contacto</h2>
+            
+            <div class="bg-white p-6 rounded-xl shadow-md max-w-lg">
+                <h3 class="font-bold text-blue-900 mb-4 border-b pb-2">Números de WhatsApp (Soporte)</h3>
+                <p class="text-xs text-gray-500 mb-4">Define a qué número se enviará el mensaje del cliente según la operación. (Usar formato internacional sin el +: 573...)</p>
+                
+                <form onsubmit="guardarConfigWhatsapp(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Retiros</label>
+                        <div class="flex items-center bg-gray-50 rounded border px-3">
+                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
+                            <input type="number" id="conf-RETIRO" class="w-full bg-transparent p-2 outline-none" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Recargas</label>
+                        <div class="flex items-center bg-gray-50 rounded border px-3">
+                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
+                            <input type="number" id="conf-RECARGA" class="w-full bg-transparent p-2 outline-none" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Abonos Caja</label>
+                        <div class="flex items-center bg-gray-50 rounded border px-3">
+                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
+                            <input type="number" id="conf-ABONO_CAJA" class="w-full bg-transparent p-2 outline-none" required>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Consignaciones</label>
+                        <div class="flex items-center bg-gray-50 rounded border px-3">
+                            <i class="fab fa-whatsapp text-orange-500 mr-2"></i>
+                            <input type="number" id="conf-CONSIGNACION" class="w-full bg-transparent p-2 outline-none" placeholder="573..." required>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Traslados de Saldo</label>
+                        <div class="flex items-center bg-gray-50 rounded border px-3">
+                            <i class="fab fa-whatsapp text-blue-500 mr-2"></i>
+                            <input type="number" id="conf-TRASLADO" class="w-full bg-transparent p-2 outline-none" placeholder="573..." required>
+                        </div>
+                    </div>
+        
+                    <button type="submit" class="w-full bg-blue-900 text-white font-bold py-3 rounded hover:bg-blue-800 transition mt-4">
+                        Guardar Cambios
+                    </button>
+                </form>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-md max-w-lg mb-6 border-l-4 border-indigo-500">
+                <h3 class="font-bold text-indigo-900 mb-4 border-b pb-2">
+                    <i class="fas fa-clock mr-2"></i>Horario de Operación
+                </h3>
+                <p class="text-xs text-gray-500 mb-4">Define el rango en el que los clientes pueden realizar operaciones. Fuera de este horario, el sistema se bloqueará.</p>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Apertura</label>
+                        <input type="time" id="conf-apertura" class="w-full bg-gray-50 border p-2 rounded outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
+                        <input type="time" id="conf-cierre" class="w-full bg-gray-50 border p-2 rounded outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <button onclick="guardarHorario()" class="mt-4 bg-indigo-100 text-indigo-700 px-4 py-2 rounded text-xs font-bold hover:bg-indigo-200 transition w-full">
+                    Actualizar Horario
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL DETALLE DE TRANSACCIÓN (RESPONSIVO) -->
+    <div id="modal-detalle-tx" class="fixed inset-0 bg-black bg-opacity-60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100 flex flex-col max-h-[90vh]">
+            <!-- Header -->
+            <div class="bg-blue-900 text-white p-4 md:p-6 flex justify-between items-center shrink-0">
+                <div>
+                    <h3 class="text-lg md:text-xl font-bold" id="modal-titulo">Detalle</h3>
+                    <p class="text-blue-200 text-xs mt-1 font-mono break-all" id="modal-id">ID: ...</p>
+                </div>
+                <button onclick="document.getElementById('modal-detalle-tx').classList.add('hidden')" class="text-white hover:text-gray-300 p-2">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <!-- Body con Scroll -->
+            <div class="p-4 md:p-6 space-y-4 overflow-y-auto">
+                <div class="flex justify-between items-center border-b pb-4">
+                    <span id="modal-estado" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gray-100 text-gray-600">...</span>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500 uppercase">Monto</p>
+                        <p class="text-2xl font-bold text-gray-800" id="modal-monto">...</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase font-bold">Fecha</p>
+                        <p id="modal-fecha">...</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase font-bold">Cliente</p>
+                        <p id="modal-cliente" class="truncate">...</p>
+                        <p class="text-xs text-gray-400" id="modal-cedula">...</p>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <h4 class="text-xs font-bold text-blue-900 uppercase mb-3 border-b border-gray-200 pb-1">Detalles</h4>
+                    <div id="modal-contenido-dinamico" class="space-y-2 text-sm text-gray-700 break-words"></div>
+                </div>
+                <div id="modal-comprobante-container" class="hidden">
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Comprobante</p>
+                    <a id="modal-comprobante-link" href="#" target="_blank" class="block w-full">
+                        <img id="modal-comprobante-img" src="" class="w-full h-auto max-h-[50vh] object-contain rounded-lg border bg-gray-100" alt="Comprobante">
+                    </a>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 border-t text-right shrink-0">
+                <button onclick="document.getElementById('modal-detalle-tx').classList.add('hidden')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg w-full md:w-auto">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Lógica de Interfaz (UI) -->
+    <script>
+        // Función simple para abrir/cerrar menú en móvil
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            // Toggle de la clase que mueve el sidebar fuera de la pantalla
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Función auxiliar para navegar y cerrar el menú automáticamente en móvil
+        function navegar(vista) {
+            cargarVista(vista);
+            // Si estamos en móvil (pantalla pequeña), cerramos el menú al hacer click
+            if (window.innerWidth < 768) { 
+                toggleSidebar();
+            }
+        }
+
+        try {
+            const usuarioSesion = JSON.parse(localStorage.getItem('usuario_banco'));
+            // Si no existe o no es admin, fuera
+            if (!usuarioSesion || usuarioSesion.rol !== 'admin') {
+                window.location.href = 'login.html';
+            }
+        } catch(e) {
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <!-- Conexión con tu lógica de negocio -->
+    <script src="admin.js"></script>
+</body>
+</html>
