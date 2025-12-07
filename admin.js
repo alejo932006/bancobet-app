@@ -1,4 +1,4 @@
-const API_URL = 'https://budapest-caution-authors-sacrifice.trycloudflare.com/api/admin';
+const API_URL = 'https://assess-authorized-ice-vii.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 

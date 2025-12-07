@@ -1,6 +1,6 @@
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://budapest-caution-authors-sacrifice.trycloudflare.com/api',
+    apiURL: 'https://assess-authorized-ice-vii.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
