@@ -41,6 +41,10 @@ function cargarVista(vista) {
     if (vista === 'dashboard') cargarResumen();
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'movimientos') cargarMovimientosGlobales();
+    if (vista === 'descuentos') {
+        cargarUsuariosEnSelect(); // Función auxiliar para llenar el select
+        cargarHistorialDescuentos();
+    }
     if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); }
 }
 
@@ -701,4 +705,101 @@ async function guardarHorario() {
     });
     
     if(res.ok) Swal.fire('Horario Actualizado', 'El sistema respetará el nuevo horario.', 'success');
+}
+
+// --- GESTIÓN DE DESCUENTOS ---
+
+function cargarUsuariosEnSelect() {
+    const select = document.getElementById('desc-usuario');
+    select.innerHTML = '<option value="">Seleccione un usuario...</option>';
+    
+    // Usamos usuariosCache que ya cargaste al iniciar la app
+    usuariosCache.forEach(u => {
+        const saldo = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(u.saldo_actual);
+        const option = document.createElement('option');
+        option.value = u.id;
+        option.innerHTML = `${u.nombre_completo} (Saldo: ${saldo})`;
+        select.appendChild(option);
+    });
+}
+
+async function procesarDescuento(e) {
+    e.preventDefault();
+    
+    const usuarioId = document.getElementById('desc-usuario').value;
+    const monto = document.getElementById('desc-monto').value;
+    const motivo = document.getElementById('desc-motivo').value;
+
+    if(!usuarioId || !monto || !motivo) return Swal.fire('Atención', 'Todos los campos son obligatorios', 'warning');
+
+    const confirm = await Swal.fire({
+        title: '¿Confirmar Descuento?',
+        text: `Se descontarán $${monto} al cliente seleccionado.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#db2777', // Color rosa
+        confirmButtonText: 'Sí, cobrar'
+    });
+
+    if (confirm.isConfirmed) {
+        try {
+            const res = await fetch(`${API_URL}/descuento`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usuario_id: usuarioId, monto, motivo })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                Swal.fire('Éxito', 'Descuento aplicado correctamente', 'success');
+                document.getElementById('form-descuento').reset();
+                cargarHistorialDescuentos(); // Refrescar tabla pequeña
+                cargarUsuarios(); // Refrescar cache de saldos
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo aplicar', 'error');
+            }
+        } catch (error) {
+            Swal.fire('Error', 'Fallo de conexión', 'error');
+        }
+    }
+}
+
+async function cargarHistorialDescuentos() {
+    // Reutilizamos el endpoint de transacciones pero filtramos en el cliente (o podrías crear un endpoint específico)
+    // Para simplificar, pedimos las ultimas transacciones y filtramos las que sean 'DESCUENTO'
+    const res = await fetch(`${API_URL}/transacciones`); 
+    const txs = await res.json();
+    
+    const descuentos = txs.filter(t => t.tipo_operacion === 'DESCUENTO').slice(0, 10); // Solo las ultimas 10
+    const tbody = document.getElementById('tabla-descuentos-recent');
+    tbody.innerHTML = '';
+
+    if (descuentos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400 text-xs">No hay cobros recientes</td></tr>';
+        return;
+    }
+
+    descuentos.forEach(d => {
+        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(d.monto);
+        const fecha = moment(d.fecha_transaccion).format('DD/MM HH:mm');
+        const esReversada = d.estado === 'REVERSADO';
+        
+        const tr = `
+            <tr class="border-b ${esReversada ? 'opacity-50 bg-gray-100' : ''}">
+                <td class="py-3 text-xs text-gray-500">${fecha}</td>
+                <td class="py-3">
+                    <div class="text-xs font-bold text-gray-700">${d.nombre_completo}</div>
+                    <div class="text-[10px] text-gray-400 italic">${d.referencia_externa || 'Sin motivo'}</div>
+                </td>
+                <td class="py-3 text-right font-mono text-xs font-bold text-pink-600 ${esReversada ? 'line-through' : ''}">${monto}</td>
+                <td class="py-3 text-center">
+                    ${esReversada ? 
+                        '<span class="text-[10px] bg-gray-200 px-1 rounded">REVERSADO</span>' : 
+                        `<button onclick="eliminarTransaccion(${d.id})" class="text-red-400 hover:text-red-600" title="Reversar"><i class="fas fa-undo"></i></button>`
+                    }
+                </td>
+            </tr>
+        `;
+        tbody.innerHTML += tr;
+    });
 }

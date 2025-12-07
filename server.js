@@ -416,6 +416,10 @@ app.delete('/api/admin/transacciones/:id', async (req, res) => {
              }
              referenciaPareja = tx.referencia_externa.replace('-RX', '');
         }
+        else if (tx.tipo_operacion === 'DESCUENTO') {
+            // Si fue un descuento, le quitamos dinero. Para reversar, SE LO DEVOLVEMOS.
+            await client.query(`UPDATE usuarios SET saldo_actual = saldo_actual + $1 WHERE id = $2`, [montoImpacto, tx.usuario_id]);
+        }
         else {
             // Operaciones normales (Retiro, Recarga, etc.)
             let operacionReversa = "";
@@ -516,6 +520,47 @@ app.post('/api/admin/config-whatsapp', async (req, res) => {
         await client.query('ROLLBACK'); 
         res.status(500).json({ error: err.message }); 
     } finally { client.release(); }
+});
+
+app.post('/api/admin/descuento', async (req, res) => {
+    const { usuario_id, monto, motivo } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const montoFloat = parseFloat(monto);
+
+        // 1. Validar saldo
+        const userRes = await client.query('SELECT saldo_actual FROM usuarios WHERE id = $1', [usuario_id]);
+        if (userRes.rows.length === 0) throw new Error('Usuario no encontrado');
+        
+        // Opcional: Si permites saldo negativo, quita este if
+        if (userRes.rows[0].saldo_actual < montoFloat) {
+            throw new Error('El usuario no tiene saldo suficiente para este descuento.');
+        }
+
+        // 2. Restar saldo al usuario
+        await client.query('UPDATE usuarios SET saldo_actual = saldo_actual - $1 WHERE id = $2', [montoFloat, usuario_id]);
+
+        // 3. Registrar transacción
+        // Usamos 'referencia_externa' para guardar el motivo del descuento
+        const idTx = `DESC-${Date.now()}`;
+        await client.query(
+            `INSERT INTO transacciones (usuario_id, tipo_operacion, monto, estado, referencia_externa) 
+             VALUES ($1, 'DESCUENTO', $2, 'APROBADO', $3)`,
+            [usuario_id, montoFloat, motivo || 'Cobro Administrativo']
+        );
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'Descuento aplicado con éxito' });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
 });
 
 

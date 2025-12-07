@@ -25,7 +25,8 @@ const ESTILOS_OPERACION = {
     'ABONO_TRASLADO': { icono: 'fa-hand-holding-usd', color: 'text-green-600', bg: 'bg-green-100', signo: '+' }, // Recibiste dinero
     'RECARGA': { icono: 'fa-gamepad', color: 'text-red-600', bg: 'bg-red-100', signo: '-' },
     'TRASLADO': { icono: 'fa-exchange-alt', color: 'text-red-600', bg: 'bg-red-100', signo: '-' }, // Enviaste dinero
-    'CONSIGNACION': { icono: 'fa-university', color: 'text-orange-600', bg: 'bg-orange-100', signo: '-' }
+    'CONSIGNACION': { icono: 'fa-university', color: 'text-orange-600', bg: 'bg-orange-100', signo: '-' },
+    'DESCUENTO': { icono: 'fa-percentage', color: 'text-pink-600', bg: 'bg-pink-100', signo: '-' }
 };
 const ESTILOS_ESTADO = {
     'PENDIENTE': 'bg-yellow-100 text-yellow-800',
