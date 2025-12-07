@@ -240,11 +240,26 @@ app.get('/api/admin/resumen', async (req, res) => {
             GROUP BY tipo_operacion
         `, params);
 
+        // [NUEVO] 5. Estadísticas BETPLAY
+        const betplayStats = await pool.query(`
+            SELECT tipo_operacion, SUM(monto) as total
+            FROM transacciones
+            WHERE estado = 'APROBADO' AND cc_casino = 'BETPLAY'${filtroFecha}
+            GROUP BY tipo_operacion
+        `, params);
+
         let kairoRetiros = 0;
         let kairoRecargas = 0;
         kairoStats.rows.forEach(row => {
             if (row.tipo_operacion === 'RETIRO') kairoRetiros = parseFloat(row.total);
             if (row.tipo_operacion === 'RECARGA') kairoRecargas = parseFloat(row.total);
+        });
+
+        // [NUEVO] Procesar Betplay
+        let betRetiros = 0; let betRecargas = 0;
+        betplayStats.rows.forEach(row => {
+            if (row.tipo_operacion === 'RETIRO') betRetiros = parseFloat(row.total);
+            if (row.tipo_operacion === 'RECARGA') betRecargas = parseFloat(row.total);
         });
 
         res.json({
@@ -257,6 +272,11 @@ app.get('/api/admin/resumen', async (req, res) => {
                 retiros: kairoRetiros,
                 recargas: kairoRecargas,
                 saldo: kairoRetiros - kairoRecargas
+            },
+            betplay: {
+                retiros: betRetiros,
+                recargas: betRecargas,
+                saldo: betRetiros - betRecargas
             }
         });
 

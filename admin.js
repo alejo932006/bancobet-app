@@ -103,6 +103,21 @@ async function cargarResumen() {
             }
         }
 
+        if (data.betplay) {
+            document.getElementById('betplay-retiros').innerText = fmt(data.betplay.retiros);
+            document.getElementById('betplay-recargas').innerText = fmt(data.betplay.recargas);
+            
+            const saldoBet = document.getElementById('betplay-saldo');
+            saldoBet.innerText = fmt(data.betplay.saldo);
+            
+            // Colores dinámicos para el saldo
+            if (data.betplay.saldo < 0) {
+                saldoBet.className = "text-2xl font-bold mt-1 text-red-600";
+            } else {
+                saldoBet.className = "text-2xl font-bold mt-1 text-blue-600";
+            }
+        }
+
     } catch (e) { console.error("Error cargando resumen:", e); }
 }
 
