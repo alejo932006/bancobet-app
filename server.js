@@ -563,5 +563,4 @@ app.post('/api/admin/descuento', async (req, res) => {
     }
 });
 
-
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });
