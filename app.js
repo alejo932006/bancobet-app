@@ -198,7 +198,37 @@ function abrirModalDetalle(id) {
                  </div>`;
     }
 
-    if (tx.tipo_operacion === 'RETIRO') html += `<p><strong>Casino:</strong> ${tx.cc_casino}</p><p><strong>PIN:</strong> ${tx.pin_retiro}</p>`;
+    if (tx.tipo_operacion === 'RETIRO') {
+        // Detectamos si es Kairo o Betplay
+        if (tx.cc_casino === 'KAIROPLAY') {
+             html += `<div class="mt-2 text-center">
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded">KAIROPLAY</span>
+                      </div>
+                      <p class="mt-2"><strong>ID Transferencia:</strong> ${tx.pin_retiro || '---'}</p>`;
+        } else {
+             // Si no es Kairo, ES BETPLAY
+             // tx.cc_casino contiene la Cédula registrada, así que la mostramos como tal.
+             html += `<div class="mt-2 text-center">
+                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">BETPLAY</span>
+                      </div>
+                      <p class="mt-2 text-xs"><strong>C.C en Casino:</strong> ${tx.cc_casino || 'N/A'}</p>
+                      <p class="text-xs"><strong>Titular:</strong> ${tx.nombre_cedula || 'N/A'}</p>
+                      <p class="text-xs"><strong>PIN:</strong> ${tx.pin_retiro || 'N/A'}</p>`;
+        }
+    }
+    else if (tx.tipo_operacion === 'RECARGA') {
+        if (tx.cc_casino === 'KAIROPLAY') {
+             html += `<div class="mt-2 text-center">
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded">KAIROPLAY</span>
+                      </div>
+                      <p class="mt-2"><strong>ID Usuario:</strong> ${tx.pin_retiro || '---'}</p>`;
+        } else {
+             html += `<div class="mt-2 text-center">
+                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">BETPLAY</span>
+                      </div>
+                      <p class="mt-2"><strong>Cédula a Recargar:</strong> ${tx.cedula_destino || tx.pin_retiro || 'N/A'}</p>`;
+        }
+    }
     else if (tx.tipo_operacion === 'CONSIGNACION') html += `<p><strong>Llave:</strong> ${tx.llave_bre_b}</p><p><strong>Titular:</strong> ${tx.titular_cuenta}</p>`;
     else if (tx.tipo_operacion === 'ABONO_CAJA') html += '<p class="italic text-gray-500">Depósito Bancario</p>';
     

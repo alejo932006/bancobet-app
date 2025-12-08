@@ -141,27 +141,38 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
             );
 
         } else {
-            // OPERACIONES NORMALES (Aquí es donde fallaba tu código)
+            // OPERACIONES NORMALES (RETIROS, RECARGAS, ABONOS)
             let operacion = "";
-            let comision = 0;
-            let montoNeto = montoBruto;
-
+            let comision = 0; // Por defecto 0
+            
+            // 1. Calcular Comisión (Solo para Betplay)
             if (data.tipo_operacion === 'RETIRO') {
-                if (data.cc_casino === 'KAIROPLAY') { comision = 0; } else { comision = montoBruto * 0.03; }
-                montoNeto = montoBruto - comision;
-                operacion = "+"; 
-            } else if (data.tipo_operacion === 'ABONO_CAJA') {
-                operacion = "+";
+                if (data.cc_casino === 'KAIROPLAY') { 
+                    comision = 0; // Kairo no cobra comisión
+                } else { 
+                    comision = montoBruto * 0.03; // Betplay sí
+                }
+            }
+
+            // El monto neto es lo que realmente afecta el saldo del cliente
+            const montoNeto = montoBruto - comision;
+
+            // 2. Determinar signo de la operación
+            if (data.tipo_operacion === 'RETIRO' || data.tipo_operacion === 'ABONO_CAJA') {
+                operacion = "+"; // Ingresa dinero al cliente
             } else {
-                operacion = "-"; 
+                // Es una salida (RECARGA, CONSIGNACIÓN, ETC)
+                operacion = "-"; // Sale dinero del cliente
+                
+                // Validamos saldo SIEMPRE (Sea Kairo o Betplay, el cliente debe tener plata)
                 const saldoRes = await client.query('SELECT saldo_actual FROM usuarios WHERE id = $1', [data.usuario_id]);
                 if (saldoRes.rows[0].saldo_actual < montoBruto) throw new Error("Saldo insuficiente");
             }
 
+            // 3. EJECUTAR EL CAMBIO DE SALDO (Afecta al cliente en su panel)
             await client.query(`UPDATE usuarios SET saldo_actual = saldo_actual ${operacion} $1 WHERE id = $2`, [montoNeto, data.usuario_id]);
 
-            // [AQUÍ OCURRÍA EL ERROR]
-            // El array de valores llama a 'comprobantePath'. Si arriba no la definiste con ESE nombre exacto, explota.
+            // 4. Insertar transacción
             await client.query(
                 `INSERT INTO transacciones (usuario_id, tipo_operacion, monto, comision, estado, cc_casino, nombre_cedula, pin_retiro, cedula_destino, llave_bre_b, titular_cuenta, comprobante_ruta, referencia_externa) 
                  VALUES ($1, $2, $3, $4, 'APROBADO', $5, $6, $7, $8, $9, $10, $11, $12)`,
@@ -201,38 +212,64 @@ app.get('/api/admin/resumen', async (req, res) => {
     try {
         const { fechaInicio, fechaFin } = req.query;
 
-        // Preparar cláusula WHERE para fechas (si existen)
-        // Usamos ::date para comparar solo la parte de la fecha ignorando la hora exacta
+        // Filtro de fecha para las gráficas de movimiento
         let filtroFecha = "";
         const params = [];
-        
         if (fechaInicio && fechaFin) {
             filtroFecha = " AND fecha_transaccion::date BETWEEN $1 AND $2";
             params.push(fechaInicio, fechaFin);
         }
 
-        // 1. Pasivo Total y Usuarios (Estos SIEMPRE son el estado actual, no se filtran por fecha)
-        const saldoTotal = await pool.query("SELECT SUM(saldo_actual) as total FROM usuarios WHERE rol = 'cliente'");
-        const numUsuarios = await pool.query("SELECT COUNT(*) as total FROM usuarios WHERE rol = 'cliente'");
-        
-        // 2. Ganancias (Suma de comisiones) - APLICA FILTRO
+        // 1. OBTENER SALDO REAL DE LA BD (Incluye Kairoplay)
+        const saldoRealRes = await pool.query("SELECT SUM(saldo_actual) as total FROM usuarios WHERE rol = 'cliente'");
+        let totalBancoReal = parseFloat(saldoRealRes.rows[0].total || 0);
+
+        // 2. CALCULAR EL IMPACTO HISTÓRICO DE KAIROPLAY (Para descontarlo)
+        // Necesitamos saber cuánto ha entrado y salido por Kairoplay en TOTAL (sin filtro de fecha)
+        // para poder "limpiar" el saldo actual de los clientes.
+        const kairoHistorico = await pool.query(`
+            SELECT tipo_operacion, SUM(monto) as total
+            FROM transacciones
+            WHERE estado = 'APROBADO' AND cc_casino = 'KAIROPLAY'
+            GROUP BY tipo_operacion
+        `);
+
+        let kairoIngresos = 0; // Dinero que entró al usuario (Retiros de Kairo)
+        let kairoEgresos = 0;  // Dinero que salió del usuario (Recargas a Kairo)
+
+        kairoHistorico.rows.forEach(row => {
+            if (row.tipo_operacion === 'RETIRO') kairoIngresos += parseFloat(row.total);
+            if (row.tipo_operacion === 'RECARGA') kairoEgresos += parseFloat(row.total);
+        });
+
+        // 3. CALCULAR SALDO "PURO" PARA EL ADMIN
+        // Si el usuario tiene $100 y retiró $20 de Kairo, su saldo real es $120.
+        // Para que el Admin vea $100, restamos esos ingresos y sumamos los egresos.
+        const totalBancoVisual = totalBancoReal - kairoIngresos + kairoEgresos;
+
+
+        // 4. Métrica de Ganancias (Comisiones)
+        // Aquí filtramos Kairoplay para que no cuente (aunque Kairo tiene comisión 0, es bueno asegurar)
         const comisiones = await pool.query(
-            `SELECT SUM(comision) as total FROM transacciones WHERE estado = 'APROBADO'${filtroFecha}`, 
+            `SELECT SUM(comision) as total FROM transacciones WHERE estado = 'APROBADO' ${filtroFecha}`, 
             params
         );
 
-        // 3. Totales por Tipo de Operación - APLICA FILTRO
+        // 5. Desglose de Operaciones (SIN KAIROPLAY)
+        // Esto es para las tarjetas de "Retiros", "Recargas", etc.
         const operaciones = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total 
             FROM transacciones 
-            WHERE estado = 'APROBADO'${filtroFecha}
+            WHERE estado = 'APROBADO'
+            ${filtroFecha}
+            AND (cc_casino IS NULL OR cc_casino != 'KAIROPLAY')
             GROUP BY tipo_operacion
         `, params);
 
         const desglose = {};
         operaciones.rows.forEach(op => { desglose[op.tipo_operacion] = op.total || 0; });
 
-        // 4. Estadísticas KAIROPLAY - APLICA FILTRO
+        // 6. Estadísticas KAIROPLAY (Para su propia tarjeta) - Aplica filtro de fecha si existe
         const kairoStats = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total
             FROM transacciones
@@ -240,43 +277,46 @@ app.get('/api/admin/resumen', async (req, res) => {
             GROUP BY tipo_operacion
         `, params);
 
-        // [NUEVO] 5. Estadísticas BETPLAY
+        let kRetiros = 0; let kRecargas = 0;
+        kairoStats.rows.forEach(row => {
+            if (row.tipo_operacion === 'RETIRO') kRetiros = parseFloat(row.total);
+            if (row.tipo_operacion === 'RECARGA') kRecargas = parseFloat(row.total);
+        });
+
+        // 7. Estadísticas BETPLAY
         const betplayStats = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total
             FROM transacciones
-            WHERE estado = 'APROBADO' AND cc_casino = 'BETPLAY'${filtroFecha}
+            WHERE estado = 'APROBADO' 
+            AND (cc_casino != 'KAIROPLAY' OR cc_casino IS NULL)
+            ${filtroFecha}
             GROUP BY tipo_operacion
         `, params);
 
-        let kairoRetiros = 0;
-        let kairoRecargas = 0;
-        kairoStats.rows.forEach(row => {
-            if (row.tipo_operacion === 'RETIRO') kairoRetiros = parseFloat(row.total);
-            if (row.tipo_operacion === 'RECARGA') kairoRecargas = parseFloat(row.total);
-        });
-
-        // [NUEVO] Procesar Betplay
-        let betRetiros = 0; let betRecargas = 0;
+        let bRetiros = 0; let bRecargas = 0;
         betplayStats.rows.forEach(row => {
-            if (row.tipo_operacion === 'RETIRO') betRetiros = parseFloat(row.total);
-            if (row.tipo_operacion === 'RECARGA') betRecargas = parseFloat(row.total);
+            if (row.tipo_operacion === 'RETIRO') bRetiros = parseFloat(row.total);
+            if (row.tipo_operacion === 'RECARGA') bRecargas = parseFloat(row.total);
         });
+        
+        // Obtener total usuarios
+        const numUsuarios = await pool.query("SELECT COUNT(*) as total FROM usuarios WHERE rol = 'cliente'");
 
         res.json({
             success: true,
-            totalBanco: saldoTotal.rows[0].total || 0,
+            totalBanco: totalBancoVisual, // <--- AQUÍ VA EL SALDO "PURO"
             totalUsuarios: numUsuarios.rows[0].total || 0,
-            totalGanancias: comisiones.rows[0].total || 0, // Ahora esto muestra ganancia DIARIA por defecto
+            totalGanancias: comisiones.rows[0].total || 0,
             desgloseOperaciones: desglose,
             kairo: {
-                retiros: kairoRetiros,
-                recargas: kairoRecargas,
-                saldo: kairoRetiros - kairoRecargas
+                retiros: kRetiros,
+                recargas: kRecargas,
+                saldo: kRetiros - kRecargas
             },
             betplay: {
-                retiros: betRetiros,
-                recargas: betRecargas,
-                saldo: betRetiros - betRecargas
+                retiros: bRetiros,
+                recargas: bRecargas,
+                saldo: bRetiros - bRecargas
             }
         });
 
