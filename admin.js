@@ -1,4 +1,4 @@
-const API_URL = 'https://todd-various-experiment-damages.trycloudflare.com/api/admin';
+const API_URL = 'https://outlined-usc-leads-cope.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
@@ -45,7 +45,7 @@ function cargarVista(vista) {
         cargarUsuariosEnSelect(); // Función auxiliar para llenar el select
         cargarHistorialDescuentos();
     }
-    if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); }
+    if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); cargarAjusteKairo();}
 }
 
 // [NUEVO] Función para cerrar sesión explícitamente
@@ -87,9 +87,9 @@ async function cargarResumen() {
         document.getElementById('dash-ganancias').innerText = fmt(data.totalGanancias);
 
         const ops = data.desgloseOperaciones || {};
-        document.getElementById('dash-retiros').innerText = fmt(ops['RETIRO']);
+        // document.getElementById('dash-retiros').innerText = fmt(ops['RETIRO']);
         document.getElementById('dash-abonos').innerText = fmt(ops['ABONO_CAJA']);
-        document.getElementById('dash-recargas').innerText = fmt(ops['RECARGA']);
+        // document.getElementById('dash-recargas').innerText = fmt(ops['RECARGA']);
         document.getElementById('dash-consignaciones').innerText = fmt(ops['CONSIGNACION']);
         document.getElementById('dash-traslados').innerText = fmt(ops['TRASLADO']);
 
@@ -157,11 +157,17 @@ async function cargarMovimientosGlobales() {
         if(tx.referencia_externa) detalle += `<br><span class="text-xs opacity-75">ID: ${tx.referencia_externa}</span>`;
 
         const btnReversar = esReversada 
-            ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
-            : `<button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
-
+        ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
+        : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
+           <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
+        const indicadorEdicion = tx.editado 
+        ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
+        : '';
         const tr = `
-            <tr class="border-b border-gray-100 ${claseFila}">
+        <tr class="...">
+            <td class="px-5 py-3 text-right font-mono font-bold ${claseMonto} whitespace-nowrap">
+                ${['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? '+' : '-'} ${monto}
+                ${indicadorEdicion} </td>
                 <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">${fecha}</td>
                 <td class="px-5 py-3">
                     <div class="text-sm font-bold ${esReversada ? 'text-gray-500' : 'text-gray-700'} whitespace-nowrap">${tx.nombre_completo}</div>
@@ -380,54 +386,84 @@ async function filtrarHistorialDetalle() {
     let url = `${API_URL}/usuario/${usuarioActualId}/historial`;
     if(inicio && fin) url += `?fechaInicio=${inicio}&fechaFin=${fin}`;
 
-    const res = await fetch(url);
-    const txs = await res.json();
-    transaccionesCache = txs;
-    
-    const tbody = document.getElementById('tabla-detalle-historial');
-    tbody.innerHTML = '';
-
-    if(txs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">Sin movimientos.</td></tr>'; return; }
-
-    txs.forEach(tx => {
-        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
+    try {
+        const res = await fetch(url);
+        const txs = await res.json();
+        transaccionesCache = txs;
         
-        let htmlComision = '';
-        if (tx.comision > 0) {
-            const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.comision);
-            htmlComision = `<div class="text-[10px] text-red-400 font-normal mt-1">(- ${comisionFmt} 3%)</div>`;
+        const tbody = document.getElementById('tabla-detalle-historial');
+        tbody.innerHTML = '';
+
+        if(txs.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">Sin movimientos.</td></tr>'; 
+            return; 
         }
 
-        const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
-        const esReversada = tx.estado === 'REVERSADO';
-        
-        const claseFila = esReversada ? 'bg-gray-100 text-gray-400' : 'hover:bg-gray-50';
-        const claseTextoMonto = esReversada ? 'line-through text-gray-400' : 'text-gray-800';
-        let detalle = tx.tipo_operacion.replace(/_/g, ' ');
-        if(esReversada) detalle += ' (REVERSADO)';
-        
-        const btnReversar = esReversada
-            ? `<span class="text-xs font-bold text-gray-400 border border-gray-300 px-2 py-1 rounded">ANULADO</span>`
-            : `<button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 px-3 py-1 rounded text-xs font-bold transition"><i class="fas fa-undo"></i> Reversar</button>`;
+        txs.forEach(tx => {
+            // Formateadores
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
+            const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
+            const esReversada = tx.estado === 'REVERSADO';
+            
+            // 1. DEFINIR COLORES Y SIGNOS (Esto faltaba)
+            const esIngreso = ['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion);
+            const signo = esIngreso ? '+' : '-';
+            
+            // Si está reversada, tachado gris. Si no, Verde para ingresos, Rojo para salidas.
+            const claseColorMonto = esReversada 
+                ? 'line-through text-gray-400' 
+                : (esIngreso ? 'text-green-600' : 'text-red-600');
 
-        const tr = `
-            <tr class="border-b border-gray-100 ${claseFila}">
-                <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">${fecha}</td>
-                <td class="px-5 py-3 font-bold text-sm whitespace-nowrap">${detalle}</td>
-                <td class="px-5 py-3 text-right font-mono ${claseTextoMonto} whitespace-nowrap">
-                    ${monto}
-                    ${esReversada ? '' : htmlComision}
-                </td>
-                <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">Ref: ${tx.referencia_externa || tx.id}</td>
-                <td class="px-5 py-3 text-center whitespace-nowrap">
-                    <div class="flex items-center justify-center gap-2">
-                        <button onclick="abrirModalDetalle(${tx.id})" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-eye"></i></button>
-                        ${btnReversar}
-                    </div>
-                </td>
-            </tr>`;
-        tbody.innerHTML += tr;
-    });
+            const claseFila = esReversada ? 'bg-gray-100 text-gray-400' : 'hover:bg-gray-50';
+
+            // 2. COMISIÓN
+            let htmlComision = '';
+            if (tx.comision > 0) {
+                const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.comision);
+                htmlComision = `<div class="text-[10px] text-red-400 font-normal mt-1">(- ${comisionFmt} 3%)</div>`;
+            }
+
+            // 3. DETALLE
+            let detalle = tx.tipo_operacion.replace(/_/g, ' ');
+            if(esReversada) detalle += ' (REVERSADO)';
+
+            // 4. INDICADOR DE EDICIÓN
+            const indicadorEdicion = tx.editado 
+                ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
+                : '';
+
+            // 5. BOTONES
+            const btnReversar = esReversada 
+                ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
+                : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
+                   <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
+
+            // 6. CONSTRUCCIÓN DE LA FILA (Orden corregido: Fecha -> Tipo -> Monto -> Ref -> Acciones)
+            const tr = `
+                <tr class="border-b border-gray-100 ${claseFila}">
+                    <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">${fecha}</td>
+                    
+                    <td class="px-5 py-3 font-bold text-sm whitespace-nowrap">${detalle}</td>
+                    
+                    <td class="px-5 py-3 text-right font-mono font-bold ${claseColorMonto} whitespace-nowrap">
+                        ${signo} ${monto} ${indicadorEdicion}
+                        ${esReversada ? '' : htmlComision}
+                    </td>
+                    
+                    <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">Ref: ${tx.referencia_externa || tx.id}</td>
+                    
+                    <td class="px-5 py-3 text-center whitespace-nowrap">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="abrirModalDetalle(${tx.id})" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-eye"></i></button>
+                            ${btnReversar}
+                        </div>
+                    </td>
+                </tr>`;
+            tbody.innerHTML += tr;
+        });
+    } catch (e) {
+        console.error("Error cargando historial detalle", e);
+    }
 }
 
 // --- 5. REVERSAR ---
@@ -610,21 +646,29 @@ async function guardarConfigWhatsapp(e) {
 }
 
 // --- 6. MODAL DETALLE ---
+// En admin.js
+
 function abrirModalDetalle(id) {
     const tx = transaccionesCache.find(t => t.id === id);
     if (!tx) return;
 
+    // Formateadores
+    const fmtMoneda = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    const fechaFmt = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm:ss');
+
     document.getElementById('modal-titulo').innerText = tx.tipo_operacion.replace(/_/g, ' ');
     document.getElementById('modal-id').innerText = `ID Interno: ${tx.id} | Ref: ${tx.referencia_externa || 'N/A'}`;
-    document.getElementById('modal-monto').innerText = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
+    document.getElementById('modal-monto').innerText = fmtMoneda.format(tx.monto);
     document.getElementById('modal-estado').innerText = tx.estado;
-    document.getElementById('modal-fecha').innerText = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm:ss');
+    document.getElementById('modal-fecha').innerText = fechaFmt;
     
+    // Obtener datos del cliente (si no vienen en la TX, intentamos buscarlos en el DOM)
     const nombreCliente = tx.nombre_completo || document.getElementById('detalle-nombre-usuario')?.innerText || 'Desconocido';
     const cedulaCliente = tx.cedula || '---';
     document.getElementById('modal-cliente').innerText = nombreCliente;
     document.getElementById('modal-cedula').innerText = cedulaCliente;
 
+    // Estilo del Estado
     const estadoEl = document.getElementById('modal-estado');
     estadoEl.className = `px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
         tx.estado === 'APROBADO' ? 'bg-green-100 text-green-700' : 
@@ -634,21 +678,71 @@ function abrirModalDetalle(id) {
     const divDinamico = document.getElementById('modal-contenido-dinamico');
     let html = '';
     
+    // 1. RESUMEN FINANCIERO (Si hubo comisión)
     if(tx.comision > 0) {
-        const comFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.comision);
-        const neto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto - tx.comision);
-        html += `<div class="bg-red-50 p-2 rounded mb-2 border border-red-100">
-                    <p class="text-xs text-red-500 font-bold">Resumen Financiero</p>
-                    <div class="flex justify-between text-xs mt-1"><span>Monto Bruto:</span> <span>${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto)}</span></div>
+        const comFmt = fmtMoneda.format(tx.comision);
+        const neto = fmtMoneda.format(tx.monto - tx.comision);
+        html += `<div class="bg-red-50 p-3 rounded mb-3 border border-red-100">
+                    <p class="text-xs text-red-500 font-bold uppercase border-b border-red-200 pb-1 mb-1">Resumen Financiero</p>
+                    <div class="flex justify-between text-xs mt-1"><span>Monto Bruto:</span> <span>${fmtMoneda.format(tx.monto)}</span></div>
                     <div class="flex justify-between text-xs text-red-600 font-bold"><span>Comisión (3%):</span> <span>- ${comFmt}</span></div>
                     <div class="flex justify-between text-xs font-bold border-t border-red-200 mt-1 pt-1 text-gray-800"><span>Neto al Cliente:</span> <span>${neto}</span></div>
                  </div>`;
     }
 
-    if (tx.tipo_operacion === 'RETIRO') html += `<p><strong>Casino:</strong> ${tx.cc_casino || 'N/A'}</p><p><strong>Nombre:</strong> ${tx.nombre_cedula || 'N/A'}</p><p><strong>PIN:</strong> ${tx.pin_retiro || 'N/A'}</p>`;
-    else if (tx.tipo_operacion === 'CONSIGNACION') html += `<p><strong>Llave:</strong> ${tx.llave_bre_b || 'N/A'}</p><p><strong>Titular:</strong> ${tx.titular_cuenta || 'N/A'}</p>`;
-    else if (tx.tipo_operacion === 'ABONO_CAJA') html += `<p class="text-gray-500 italic">Depósito bancario.</p>`;
+    // 2. DETALLE DE PLATAFORMA (Betplay vs Kairoplay)
+    if (tx.tipo_operacion === 'RETIRO') {
+        if (tx.cc_casino === 'KAIROPLAY') {
+             html += `<div class="mt-2 mb-2">
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded border border-purple-200">KAIROPLAY</span>
+                      </div>
+                      <p class="text-sm"><strong>ID Transferencia:</strong> ${tx.pin_retiro || '---'}</p>`;
+        } else {
+             // Es Betplay (o antiguo sin etiqueta)
+             html += `<div class="mt-2 mb-2">
+                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200">BETPLAY</span>
+                      </div>
+                      <div class="text-sm space-y-1">
+                        <p><strong>C.C en Casino:</strong> ${tx.cc_casino || 'N/A'}</p>
+                        <p><strong>Titular:</strong> ${tx.nombre_cedula || 'N/A'}</p>
+                        <p><strong>PIN:</strong> ${tx.pin_retiro || 'N/A'}</p>
+                      </div>`;
+        }
+    }
+    else if (tx.tipo_operacion === 'RECARGA') {
+        if (tx.cc_casino === 'KAIROPLAY') {
+             html += `<div class="mt-2 mb-2">
+                        <span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded border border-purple-200">KAIROPLAY</span>
+                      </div>
+                      <p class="text-sm"><strong>ID Usuario Kairo:</strong> ${tx.pin_retiro || '---'}</p>`;
+        } else {
+             html += `<div class="mt-2 mb-2">
+                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200">BETPLAY</span>
+                      </div>
+                      <p class="text-sm"><strong>Cédula a Recargar:</strong> ${tx.cedula_destino || tx.pin_retiro || 'N/A'}</p>`;
+        }
+    }
+    else if (tx.tipo_operacion === 'DESCUENTO') {
+        html += `<div class="bg-pink-50 p-4 rounded-lg border border-pink-100 text-center mt-2">
+                    <div class="inline-block p-2 bg-pink-100 rounded-full text-pink-500 mb-2">
+                        <i class="fas fa-file-invoice-dollar text-xl"></i>
+                    </div>
+                    <p class="text-xs text-pink-600 font-bold uppercase mb-1">Motivo del Cobro</p>
+                    <p class="text-gray-800 font-bold text-lg leading-tight">"${tx.referencia_externa || 'Sin detalle'}"</p>
+                    <p class="text-[10px] text-gray-400 mt-2">Este valor fue descontado del saldo del cliente.</p>
+                 </div>`;
+    }
+    else if (tx.tipo_operacion === 'CONSIGNACION') {
+        html += `<div class="text-sm bg-orange-50 p-2 rounded border border-orange-100">
+                    <p><strong>Banco/Llave:</strong> ${tx.llave_bre_b || 'N/A'}</p>
+                    <p><strong>Titular:</strong> ${tx.titular_cuenta || 'N/A'}</p>
+                 </div>`;
+    }
+    else if (tx.tipo_operacion === 'ABONO_CAJA') {
+        html += `<p class="text-gray-500 italic text-sm"><i class="fas fa-university mr-1"></i> Depósito Bancario / Caja</p>`;
+    }
     
+    // TRASLADOS ENTRE USUARIOS
     else if (tx.tipo_operacion === 'TRASLADO') {
         const usuarioDest = usuariosCache.find(u => u.id === tx.usuario_destino_id);
         const nombreDest = usuarioDest ? usuarioDest.nombre_completo : 'ID: ' + tx.usuario_destino_id;
@@ -668,6 +762,7 @@ function abrirModalDetalle(id) {
 
     divDinamico.innerHTML = html;
 
+    // 3. COMPROBANTE (Imagen)
     const imgContainer = document.getElementById('modal-comprobante-container');
     if (tx.comprobante_ruta) {
         imgContainer.classList.remove('hidden');
@@ -802,4 +897,166 @@ async function cargarHistorialDescuentos() {
         `;
         tbody.innerHTML += tr;
     });
+}
+
+function toggleAcordeon(panelId, iconId) {
+    const panel = document.getElementById(panelId);
+    const icon = document.getElementById(iconId);
+    
+    // Si está oculto, lo mostramos
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        icon.classList.add('rotate-180'); // Girar flecha
+    } else {
+        // Si está visible, lo ocultamos
+        panel.classList.add('hidden');
+        icon.classList.remove('rotate-180'); // Restaurar flecha
+    }
+}
+
+// --- AJUSTE KAIRO ---
+async function cargarAjusteKairo() {
+    try {
+        const res = await fetch(`${API_URL}/../admin/config-kairo`);
+        const data = await res.json();
+        if (document.getElementById('conf-kairo-valor')) {
+            document.getElementById('conf-kairo-valor').value = data.valor;
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function guardarAjusteKairo() {
+    const valor = document.getElementById('conf-kairo-valor').value;
+    if(valor === '') return;
+
+    try {
+        const res = await fetch(`${API_URL}/../admin/config-kairo`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ajuste: valor })
+        });
+
+        if(res.ok) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Ajuste Guardado',
+                text: 'El saldo neto de Kairoplay se ha recalibrado.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    } catch (e) {
+        Swal.fire('Error', 'No se pudo guardar', 'error');
+    }
+}
+
+async function editarMonto(id, montoActual) {
+    const { value: nuevoMonto } = await Swal.fire({
+        title: 'Corregir Valor',
+        text: `Monto actual: $${new Intl.NumberFormat('es-CO').format(montoActual)}`,
+        input: 'number',
+        inputValue: montoActual,
+        inputLabel: 'Ingresa el valor real de la transacción:',
+        showCancelButton: true,
+        confirmButtonText: 'Actualizar',
+        confirmButtonColor: '#eab308', // Amarillo
+        inputValidator: (value) => {
+            if (!value || value <= 0) return 'Debes escribir un monto válido';
+        }
+    });
+
+    if (nuevoMonto && parseFloat(nuevoMonto) !== parseFloat(montoActual)) {
+        try {
+            const res = await fetch(`${API_URL}/transacciones/${id}/monto`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nuevoMonto: nuevoMonto })
+            });
+            
+            const data = await res.json();
+            
+            if (data.success) {
+                Swal.fire('Actualizado', 'El saldo del cliente ha sido ajustado.', 'success');
+                
+                // Recargar la vista activa
+                if(!document.getElementById('vista-movimientos').classList.contains('hidden')) {
+                    cargarMovimientosGlobales();
+                } else if(!document.getElementById('vista-detalle-usuario').classList.contains('hidden')) {
+                    filtrarHistorialDetalle();
+                } else if(!document.getElementById('vista-descuentos').classList.contains('hidden')) {
+                    // Si tienes el historial de descuentos visible
+                    cargarHistorialDescuentos();
+                }
+                
+                // Actualizar cache de usuarios si es necesario
+                cargarCacheUsuarios(); 
+                
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo actualizar', 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'Fallo de conexión', 'error');
+        }
+    }
+}
+
+async function borrarBaseDatos() {
+    // 1. Primera Advertencia
+    const confirmacion1 = await Swal.fire({
+        title: '¿ESTÁS SEGURO?',
+        text: "Se borrarán todos los datos. No hay vuelta atrás.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, continuar',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (!confirmacion1.isConfirmed) return;
+
+    // 2. Solicitud de Clave Maestra
+    const { value: password } = await Swal.fire({
+        title: 'AUTORIZACIÓN REQUERIDA',
+        text: "Escribe la Clave Maestra para confirmar el borrado:",
+        input: 'password',
+        icon: 'error', // Icono rojo
+        inputPlaceholder: 'Clave Maestra',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'CONFIRMAR BORRADO',
+        allowOutsideClick: false,
+        inputValidator: (value) => {
+            if (!value) return '¡Debes escribir la clave!';
+        }
+    });
+
+    if (password) {
+        // Mostrar cargando...
+        Swal.fire({ title: 'Reseteando sistema...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+        try {
+            const res = await fetch(`${API_URL}/../admin/reset-db`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ masterKey: password })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Sistema Reiniciado',
+                    text: 'La base de datos ha quedado limpia.',
+                    confirmButtonText: 'Recargar Sitio'
+                });
+                window.location.reload(); // Recargar para limpiar caché visual
+            } else {
+                Swal.fire('Error', data.error, 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+        }
+    }
 }

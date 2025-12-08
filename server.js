@@ -211,52 +211,22 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
 app.get('/api/admin/resumen', async (req, res) => {
     try {
         const { fechaInicio, fechaFin } = req.query;
-
-        // Filtro de fecha para las gráficas de movimiento
         let filtroFecha = "";
         const params = [];
         if (fechaInicio && fechaFin) {
             filtroFecha = " AND fecha_transaccion::date BETWEEN $1 AND $2";
             params.push(fechaInicio, fechaFin);
         }
-
-        // 1. OBTENER SALDO REAL DE LA BD (Incluye Kairoplay)
+        const ajusteRes = await pool.query("SELECT valor FROM configuracion_global WHERE clave = 'kairo_ajuste_saldo'");
+        const ajusteKairo = parseFloat(ajusteRes.rows.length > 0 ? ajusteRes.rows[0].valor : 0);
         const saldoRealRes = await pool.query("SELECT SUM(saldo_actual) as total FROM usuarios WHERE rol = 'cliente'");
         let totalBancoReal = parseFloat(saldoRealRes.rows[0].total || 0);
 
-        // 2. CALCULAR EL IMPACTO HISTÓRICO DE KAIROPLAY (Para descontarlo)
-        // Necesitamos saber cuánto ha entrado y salido por Kairoplay en TOTAL (sin filtro de fecha)
-        // para poder "limpiar" el saldo actual de los clientes.
-        const kairoHistorico = await pool.query(`
-            SELECT tipo_operacion, SUM(monto) as total
-            FROM transacciones
-            WHERE estado = 'APROBADO' AND cc_casino = 'KAIROPLAY'
-            GROUP BY tipo_operacion
-        `);
-
-        let kairoIngresos = 0; // Dinero que entró al usuario (Retiros de Kairo)
-        let kairoEgresos = 0;  // Dinero que salió del usuario (Recargas a Kairo)
-
-        kairoHistorico.rows.forEach(row => {
-            if (row.tipo_operacion === 'RETIRO') kairoIngresos += parseFloat(row.total);
-            if (row.tipo_operacion === 'RECARGA') kairoEgresos += parseFloat(row.total);
-        });
-
-        // 3. CALCULAR SALDO "PURO" PARA EL ADMIN
-        // Si el usuario tiene $100 y retiró $20 de Kairo, su saldo real es $120.
-        // Para que el Admin vea $100, restamos esos ingresos y sumamos los egresos.
-        const totalBancoVisual = totalBancoReal - kairoIngresos + kairoEgresos;
-
-
-        // 4. Métrica de Ganancias (Comisiones)
-        // Aquí filtramos Kairoplay para que no cuente (aunque Kairo tiene comisión 0, es bueno asegurar)
         const comisiones = await pool.query(
             `SELECT SUM(comision) as total FROM transacciones WHERE estado = 'APROBADO' ${filtroFecha}`, 
             params
         );
 
-        // 5. Desglose de Operaciones (SIN KAIROPLAY)
-        // Esto es para las tarjetas de "Retiros", "Recargas", etc.
         const operaciones = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total 
             FROM transacciones 
@@ -269,7 +239,6 @@ app.get('/api/admin/resumen', async (req, res) => {
         const desglose = {};
         operaciones.rows.forEach(op => { desglose[op.tipo_operacion] = op.total || 0; });
 
-        // 6. Estadísticas KAIROPLAY (Para su propia tarjeta) - Aplica filtro de fecha si existe
         const kairoStats = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total
             FROM transacciones
@@ -283,9 +252,12 @@ app.get('/api/admin/resumen', async (req, res) => {
             if (row.tipo_operacion === 'RECARGA') kRecargas = parseFloat(row.total);
         });
 
-        // 7. Estadísticas BETPLAY
+        // --- CÁLCULO 5: RESUMEN BETPLAY ---
         const betplayStats = await pool.query(`
-            SELECT tipo_operacion, SUM(monto) as total
+            SELECT 
+                tipo_operacion, 
+                SUM(monto) as total_bruto,
+                SUM(comision) as total_comision
             FROM transacciones
             WHERE estado = 'APROBADO' 
             AND (cc_casino != 'KAIROPLAY' OR cc_casino IS NULL)
@@ -295,24 +267,32 @@ app.get('/api/admin/resumen', async (req, res) => {
 
         let bRetiros = 0; let bRecargas = 0;
         betplayStats.rows.forEach(row => {
-            if (row.tipo_operacion === 'RETIRO') bRetiros = parseFloat(row.total);
-            if (row.tipo_operacion === 'RECARGA') bRecargas = parseFloat(row.total);
+            if (row.tipo_operacion === 'RETIRO') bRetiros = parseFloat(row.total_bruto) - parseFloat(row.total_comision);
+            if (row.tipo_operacion === 'RECARGA') bRecargas = parseFloat(row.total_bruto);
         });
         
-        // Obtener total usuarios
         const numUsuarios = await pool.query("SELECT COUNT(*) as total FROM usuarios WHERE rol = 'cliente'");
 
         res.json({
             success: true,
-            totalBanco: totalBancoVisual, // <--- AQUÍ VA EL SALDO "PURO"
+            totalBanco: totalBancoReal, 
             totalUsuarios: numUsuarios.rows[0].total || 0,
             totalGanancias: comisiones.rows[0].total || 0,
             desgloseOperaciones: desglose,
+            
+            // KAIROPLAY MODIFICADO
             kairo: {
-                retiros: kRetiros,
-                recargas: kRecargas,
-                saldo: kRetiros - kRecargas
+                // [CAMBIO] Quitamos el '* -1'. Ahora se muestra positivo.
+                // Ejemplo: Si retiraste 200.000, se ve "200.000".
+                retiros: kRetiros, 
+                
+                recargas: kRecargas, 
+                
+                // La lógica matemática se MANTIENE (Recargas - Retiros)
+                // Ejemplo: 500.000 (Recarga) - 200.000 (Retiro) = 300.000 (Neto)
+                saldo: (kRecargas - kRetiros) + ajusteKairo
             },
+            
             betplay: {
                 retiros: bRetiros,
                 recargas: bRecargas,
@@ -598,6 +578,137 @@ app.post('/api/admin/descuento', async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Obtener el ajuste actual
+app.get('/api/admin/config-kairo', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT valor FROM configuracion_global WHERE clave = 'kairo_ajuste_saldo'");
+        res.json({ valor: result.rows.length > 0 ? result.rows[0].valor : 0 });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Guardar el ajuste
+app.post('/api/admin/config-kairo', async (req, res) => {
+    const { ajuste } = req.body;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        // Guardamos el valor (puede ser positivo o negativo)
+        await client.query(
+            "INSERT INTO configuracion_global (clave, valor) VALUES ('kairo_ajuste_saldo', $1) ON CONFLICT (clave) DO UPDATE SET valor = $1", 
+            [ajuste]
+        );
+        await client.query('COMMIT');
+        res.json({ success: true });
+    } catch (err) { 
+        await client.query('ROLLBACK'); 
+        res.status(500).json({ error: err.message }); 
+    } finally { client.release(); }
+});
+
+// --- NUEVO ENDPOINT: EDITAR MONTO TRANSACCIÓN ---
+app.put('/api/admin/transacciones/:id/monto', async (req, res) => {
+    const { id } = req.params;
+    const { nuevoMonto } = req.body;
+    
+    if(!nuevoMonto || nuevoMonto <= 0) return res.status(400).json({ error: "Monto inválido" });
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Obtener la transacción original
+        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1', [id]);
+        if (txRes.rows.length === 0) throw new Error("Transacción no encontrada");
+        
+        const tx = txRes.rows[0];
+        if (tx.estado === 'REVERSADO') throw new Error("No se puede editar una transacción reversada");
+
+        const montoViejo = parseFloat(tx.monto);
+        const montoNuevo = parseFloat(nuevoMonto);
+        
+        // 2. Calcular Nueva Comisión (Solo si la original tenía comisión)
+        // Esto mantiene la regla del 3% para Betplay si cambias el valor
+        let nuevaComision = 0;
+        if (parseFloat(tx.comision) > 0) {
+            nuevaComision = montoNuevo * 0.03;
+        }
+
+        const impactoViejo = montoViejo - parseFloat(tx.comision);
+        const impactoNuevo = montoNuevo - nuevaComision;
+
+        // 3. Ajustar el Saldo del Usuario
+        // Primero REVERTIMOS el efecto viejo, luego APLICAMOS el nuevo.
+        
+        let operacion = ""; 
+        // Identificar si la operación original SUMABA (+) o RESTABA (-) saldo
+        if (['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion)) {
+            // Originalmente SUMÓ. Para corregir: Restamos lo viejo, Sumamos lo nuevo.
+            // Matemáticamente: Saldo = Saldo - Viejo + Nuevo
+            await client.query(`UPDATE usuarios SET saldo_actual = saldo_actual - $1 + $2 WHERE id = $3`, [impactoViejo, impactoNuevo, tx.usuario_id]);
+        } else {
+            // Originalmente RESTÓ (Recargas, Traslados, Consignaciones, Descuentos). 
+            // Para corregir: Sumamos lo viejo, Restamos lo nuevo.
+            // Matemáticamente: Saldo = Saldo + Viejo - Nuevo
+            await client.query(`UPDATE usuarios SET saldo_actual = saldo_actual + $1 - $2 WHERE id = $3`, [impactoViejo, impactoNuevo, tx.usuario_id]);
+        }
+
+        // 4. Actualizar la Transacción
+        await client.query(
+            `UPDATE transacciones SET monto = $1, comision = $2, editado = true WHERE id = $3`,
+            [montoNuevo, nuevaComision, id]
+        );
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: "Monto actualizado correctamente" });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// --- ZONA DE PELIGRO: FACTORY RESET ---
+app.post('/api/admin/reset-db', async (req, res) => {
+    const { masterKey } = req.body;
+    
+    // 1. Verificación de Seguridad
+    if (masterKey !== 'Bancobet25') { // O usa la variable MASTER_KEY si la tienes definida arriba
+        return res.status(403).json({ error: "Clave Maestra Incorrecta. Acceso denegado." });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 2. Borrar TODO el historial de transacciones (Reinicia contadores de ID)
+        await client.query('TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE');
+
+        // 3. Borrar configuraciones (Vuelve a estado virgen)
+        await client.query('TRUNCATE TABLE configuracion_whatsapp RESTART IDENTITY CASCADE');
+        // Opcional: Si quieres borrar horarios también:
+        // await client.query('TRUNCATE TABLE configuracion_global RESTART IDENTITY CASCADE');
+
+        // 4. Borrar Usuarios (SOLO CLIENTES)
+        // Mantenemos a los ADMINS para que no pierdas acceso al sistema.
+        await client.query("DELETE FROM usuarios WHERE rol != 'admin'");
+
+        // 5. Reiniciar saldo de los Admins a 0 (Opcional, para limpieza total)
+        await client.query("UPDATE usuarios SET saldo_actual = 0 WHERE rol = 'admin'");
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: "El sistema ha sido formateado correctamente." });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(err);
+        res.status(500).json({ error: "Error crítico al resetear: " + err.message });
     } finally {
         client.release();
     }

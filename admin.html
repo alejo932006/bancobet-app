@@ -146,22 +146,12 @@
             <h3 class="text-lg font-bold text-gray-700 mb-4 px-1">Volumen de Operaciones</h3>
 
             <!-- FILA 2: DESGLOSE POR TIPO -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <!-- Entradas -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <p class="text-xs text-green-600 font-bold uppercase mb-1"><i class="fas fa-arrow-down mr-1"></i> Retiros (Ingresos)</p>
-                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-retiros">$ 0</p>
-                </div>
+            <div class="grid grid-cols-2 md:grid-cols-2 gap-4 mb-8">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                     <p class="text-xs text-green-600 font-bold uppercase mb-1"><i class="fas fa-donate mr-1"></i> Abonos Caja</p>
                     <p class="text-xl font-mono font-bold text-gray-800" id="dash-abonos">$ 0</p>
                 </div>
 
-                <!-- Salidas -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <p class="text-xs text-red-500 font-bold uppercase mb-1"><i class="fas fa-gamepad mr-1"></i> Recargas</p>
-                    <p class="text-xl font-mono font-bold text-gray-800" id="dash-recargas">$ 0</p>
-                </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                     <p class="text-xs text-orange-500 font-bold uppercase mb-1"><i class="fas fa-university mr-1"></i> Consignaciones</p>
                     <p class="text-xl font-mono font-bold text-gray-800" id="dash-consignaciones">$ 0</p>
@@ -183,12 +173,24 @@
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade">
                 
+                <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-purple-400"> <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Retiros (Salidas Kairo)</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-retiros">$ 0</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">Dinero sacado de la plataforma</p>
+                        </div>
+                        <div class="bg-purple-50 p-2 rounded-lg text-purple-500">
+                            <i class="fas fa-arrow-up"></i> 
+                        </div>
+                    </div>
+                </div>
+            
                 <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-green-400">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Retiros (Entradas)</p>
-                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-retiros">$ 0</h3>
-                            <p class="text-[10px] text-gray-400 mt-1">Usuarios retirando de Kairo</p>
+                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Recargas (Entradas Kairo)</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-recargas">$ 0</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">Dinero ingresado a la plataforma</p>
                         </div>
                         <div class="bg-green-50 p-2 rounded-lg text-green-500">
                             <i class="fas fa-arrow-down"></i>
@@ -196,27 +198,14 @@
                     </div>
                 </div>
             
-                <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-red-400">
+                <div class="bg-purple-50 p-5 rounded-xl shadow-sm border border-purple-100">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Recargas (Salidas)</p>
-                            <h3 class="text-2xl font-bold text-gray-800 mt-1" id="kairo-recargas">$ 0</h3>
-                            <p class="text-[10px] text-gray-400 mt-1">Usuarios cargando a Kairo</p>
+                            <p class="text-xs text-purple-800 font-bold uppercase tracking-wider">Flujo Neto Kairo</p>
+                            <h3 class="text-2xl font-bold text-purple-900 mt-1" id="kairo-saldo">$ 0</h3>
+                            <p class="text-[10px] text-purple-600 mt-1">Recargas - Retiros</p>
                         </div>
-                        <div class="bg-red-50 p-2 rounded-lg text-red-500">
-                            <i class="fas fa-upload"></i>
-                        </div>
-                    </div>
-                </div>
-            
-                <div class="bg-indigo-50 p-5 rounded-xl shadow-sm border border-indigo-100">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs text-indigo-800 font-bold uppercase tracking-wider">Flujo Neto Kairo</p>
-                            <h3 class="text-2xl font-bold text-indigo-900 mt-1" id="kairo-saldo">$ 0</h3>
-                            <p class="text-[10px] text-indigo-600 mt-1">Diferencia (Entradas - Salidas)</p>
-                        </div>
-                        <div class="bg-white p-2 rounded-lg text-indigo-600 shadow-sm">
+                        <div class="bg-white p-2 rounded-lg text-purple-600 shadow-sm">
                             <i class="fas fa-balance-scale"></i>
                         </div>
                     </div>
@@ -258,7 +247,7 @@
                 <div class="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs text-blue-800 font-bold uppercase tracking-wider">Flujo Neto Betplay</p>
+                            <p class="text-xs text-blue-800 font-bold uppercase tracking-wider">Saldo neto Betplay</p>
                             <h3 class="text-2xl font-bold text-blue-900 mt-1" id="betplay-saldo">$ 0</h3>
                             <p class="text-[10px] text-blue-600 mt-1">Diferencia (Entradas - Salidas)</p>
                         </div>
@@ -315,65 +304,99 @@
             </div>
         </div>
 
-        <div id="vista-descuentos" class="vista-seccion hidden animate-fade">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Gestión de Intereses y Descuentos</h2>
+        <div id="vista-descuentos" class="vista-seccion hidden animate-fade max-w-5xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Gestión Operativa</h2>
         
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-4">
                 
-                <div class="bg-white p-6 rounded-xl shadow-md border-t-4 border-pink-500 h-fit">
-                    <h3 class="font-bold text-gray-700 mb-4 flex items-center">
-                        <i class="fas fa-cash-register mr-2 text-pink-500"></i> Aplicar Nuevo Cobro
-                    </h3>
-                    
-                    <form id="form-descuento" onsubmit="procesarDescuento(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente a debitar</label>
-                            <select id="desc-usuario" class="w-full p-3 border rounded bg-gray-50 outline-none focus:border-pink-500">
-                                <option value="">Seleccione un usuario...</option>
-                            </select>
-                        </div>
-        
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monto a descontar</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 font-bold">$</span>
-                                <input type="number" id="desc-monto" class="pl-7 w-full p-3 border rounded outline-none focus:border-pink-500" placeholder="0" required>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+                    <button onclick="toggleAcordeon('panel-cobros', 'icon-cobros')" class="w-full flex justify-between items-center p-5 text-left bg-white hover:bg-gray-50 transition outline-none">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-pink-100 p-3 rounded-full text-pink-600 shadow-sm">
+                                <i class="fas fa-percent text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg">Aplicar Intereses / Descuentos</h3>
+                                <p class="text-xs text-gray-500">Gestión de cobros administrativos y multas a usuarios.</p>
                             </div>
                         </div>
-        
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo / Detalle</label>
-                            <input type="text" id="desc-motivo" class="w-full p-3 border rounded outline-none focus:border-pink-500" placeholder="Ej: Intereses Préstamo Mes 1" required>
-                        </div>
-        
-                        <button type="submit" class="w-full bg-pink-600 text-white font-bold py-3 rounded hover:bg-pink-700 transition">
-                            Aplicar Descuento
-                        </button>
-                    </form>
-                </div>
-        
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h3 class="font-bold text-gray-700 mb-4">Últimos Cobros Realizados</h3>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
-                            <thead>
-                                <tr class="text-left text-xs text-gray-500 uppercase border-b">
-                                    <th class="pb-2">Fecha</th>
-                                    <th class="pb-2">Cliente</th>
-                                    <th class="pb-2 text-right">Monto</th>
-                                    <th class="pb-2 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-descuentos-recent">
-                                </tbody>
-                        </table>
-                    </div>
-                    <button onclick="cargarHistorialDescuentos()" class="mt-4 text-xs text-pink-600 font-bold hover:underline">
-                        <i class="fas fa-sync-alt mr-1"></i> Actualizar lista
+                        <i id="icon-cobros" class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
                     </button>
+                    
+                    <div id="panel-cobros" class="hidden border-t border-gray-100 bg-gray-50 p-6">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 h-fit">
+                                <h4 class="font-bold text-gray-700 mb-4 flex items-center text-sm uppercase tracking-wide">
+                                    <i class="fas fa-edit mr-2 text-pink-500"></i> Nueva Deducción
+                                </h4>
+                                
+                                <form id="form-descuento" onsubmit="procesarDescuento(event)" class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente</label>
+                                        <select id="desc-usuario" class="w-full p-2.5 border rounded bg-gray-50 outline-none focus:border-pink-500 text-sm">
+                                            <option value="">Cargando...</option>
+                                        </select>
+                                    </div>
+                    
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monto</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 font-bold text-sm">$</span>
+                                            <input type="number" id="desc-monto" class="pl-7 w-full p-2.5 border rounded outline-none focus:border-pink-500 text-sm" placeholder="0" required>
+                                        </div>
+                                    </div>
+                    
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo</label>
+                                        <input type="text" id="desc-motivo" class="w-full p-2.5 border rounded outline-none focus:border-pink-500 text-sm" placeholder="Ej: Mora Mes 1" required>
+                                    </div>
+                    
+                                    <button type="submit" class="w-full bg-pink-600 text-white font-bold py-2.5 rounded hover:bg-pink-700 transition shadow-md text-sm">
+                                        Confirmar Cobro
+                                    </button>
+                                </form>
+                            </div>
+                    
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col h-full">
+                                <h4 class="font-bold text-gray-700 mb-2 text-sm uppercase tracking-wide">Historial de Cobros</h4>
+                                
+                                <div class="mb-3 relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                        <i class="fas fa-search text-xs"></i>
+                                    </span>
+                                    <input type="text" id="busqueda-descuentos" onkeyup="cargarHistorialDescuentos()" 
+                                           class="w-full pl-8 pr-3 py-2 border rounded-lg text-xs bg-gray-50 outline-none focus:border-pink-500 transition" 
+                                           placeholder="Buscar por nombre o cédula...">
+                                </div>
+
+                                <div class="overflow-y-auto max-h-[350px] border rounded-lg border-gray-100 flex-1">
+                                    <table class="min-w-full text-sm relative">
+                                        <thead class="sticky top-0 bg-gray-50 text-gray-500 uppercase text-xs font-bold z-10 shadow-sm">
+                                            <tr class="text-left border-b">
+                                                <th class="px-3 py-2">Fecha</th>
+                                                <th class="px-3 py-2">Cliente</th>
+                                                <th class="px-3 py-2 text-right">Valor</th>
+                                                <th class="px-3 py-2 text-center"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabla-descuentos-recent" class="divide-y divide-gray-100">
+                                            </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="mt-3 text-[10px] text-gray-400 text-center">
+                                    Mostrando los últimos movimientos coincidentes.
+                                </div>
+                            </div>
+                    
+                        </div>
+
+                    </div>
                 </div>
-        
-            </div>
+
+                </div>
         </div>
 
         <!-- VISTA: USUARIOS -->
@@ -444,77 +467,180 @@
             </div>
         </div>
 
-        <div id="vista-config" class="vista-seccion hidden animate-fade">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Configuración de Contacto</h2>
+        <div id="vista-config" class="vista-seccion hidden animate-fade max-w-3xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Configuración del Sistema</h2>
             
-            <div class="bg-white p-6 rounded-xl shadow-md max-w-lg">
-                <h3 class="font-bold text-blue-900 mb-4 border-b pb-2">Números de WhatsApp (Soporte)</h3>
-                <p class="text-xs text-gray-500 mb-4">Define a qué número se enviará el mensaje del cliente según la operación. (Usar formato internacional sin el +: 573...)</p>
+            <div class="space-y-4">
                 
-                <form onsubmit="guardarConfigWhatsapp(event)" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Retiros</label>
-                        <div class="flex items-center bg-gray-50 rounded border px-3">
-                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
-                            <input type="number" id="conf-RETIRO" class="w-full bg-transparent p-2 outline-none" required>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+                    <button onclick="toggleAcordeon('panel-whatsapp', 'icon-whatsapp')" class="w-full flex justify-between items-center p-5 text-left bg-white hover:bg-gray-50 transition outline-none">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-green-100 p-3 rounded-full text-green-600 shadow-sm">
+                                <i class="fab fa-whatsapp text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg">Canales de Soporte (WhatsApp)</h3>
+                                <p class="text-xs text-gray-500">Configura los números de destino para recibir comprobantes.</p>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Recargas</label>
-                        <div class="flex items-center bg-gray-50 rounded border px-3">
-                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
-                            <input type="number" id="conf-RECARGA" class="w-full bg-transparent p-2 outline-none" required>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Abonos Caja</label>
-                        <div class="flex items-center bg-gray-50 rounded border px-3">
-                            <i class="fab fa-whatsapp text-green-500 mr-2"></i>
-                            <input type="number" id="conf-ABONO_CAJA" class="w-full bg-transparent p-2 outline-none" required>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Consignaciones</label>
-                        <div class="flex items-center bg-gray-50 rounded border px-3">
-                            <i class="fab fa-whatsapp text-orange-500 mr-2"></i>
-                            <input type="number" id="conf-CONSIGNACION" class="w-full bg-transparent p-2 outline-none" placeholder="573..." required>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Traslados de Saldo</label>
-                        <div class="flex items-center bg-gray-50 rounded border px-3">
-                            <i class="fab fa-whatsapp text-blue-500 mr-2"></i>
-                            <input type="number" id="conf-TRASLADO" class="w-full bg-transparent p-2 outline-none" placeholder="573..." required>
-                        </div>
-                    </div>
-        
-                    <button type="submit" class="w-full bg-blue-900 text-white font-bold py-3 rounded hover:bg-blue-800 transition mt-4">
-                        Guardar Cambios
+                        <i id="icon-whatsapp" class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
                     </button>
-                </form>
-                <h3 class="font-bold text-blue-900 mb-4 border-b pb-2"></h3>
-                <div class="bg-white p-6 rounded-xl shadow-md max-w-lg mb-6 border-l-4 border-indigo-500">
-                    <h3 class="font-bold text-indigo-900 mb-4 border-b pb-2">
-                        <i class="fas fa-clock mr-2"></i>Horario de Operación
-                    </h3>
-                    <p class="text-xs text-gray-500 mb-4">Define el rango en el que los clientes pueden realizar operaciones. Fuera de este horario, el sistema se bloqueará.</p>
                     
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Apertura</label>
-                            <input type="time" id="conf-apertura" class="w-full bg-gray-50 border p-2 rounded outline-none focus:border-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
-                            <input type="time" id="conf-cierre" class="w-full bg-gray-50 border p-2 rounded outline-none focus:border-indigo-500">
-                        </div>
+                    <div id="panel-whatsapp" class="hidden border-t border-gray-100 bg-gray-50 p-6">
+                        <form onsubmit="guardarConfigWhatsapp(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="col-span-1 md:col-span-2 mb-2">
+                                <p class="text-sm text-gray-600">Ingresa los números en formato internacional sin el más (Ej: 573001234567).</p>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Retiros</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-arrow-down text-green-500 mr-2"></i>
+                                    <input type="number" id="conf-RETIRO" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Recargas</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-gamepad text-red-500 mr-2"></i>
+                                    <input type="number" id="conf-RECARGA" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Abonos Caja</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-donate text-green-600 mr-2"></i>
+                                    <input type="number" id="conf-ABONO_CAJA" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Consignaciones</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-university text-orange-500 mr-2"></i>
+                                    <input type="number" id="conf-CONSIGNACION" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Traslados</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-exchange-alt text-blue-500 mr-2"></i>
+                                    <input type="number" id="conf-TRASLADO" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
+                
+                            <div class="col-span-1 md:col-span-2 mt-2">
+                                <button type="submit" class="w-full bg-blue-900 text-white font-bold py-3 rounded hover:bg-blue-800 transition shadow-md">
+                                    <i class="fas fa-save mr-2"></i> Guardar Números
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    <button onclick="guardarHorario()" class="mt-4 bg-indigo-100 text-indigo-700 px-4 py-2 rounded text-xs font-bold hover:bg-indigo-200 transition w-full">
-                        Actualizar Horario
-                    </button>
                 </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+                    <button onclick="toggleAcordeon('panel-horario', 'icon-horario')" class="w-full flex justify-between items-center p-5 text-left bg-white hover:bg-gray-50 transition outline-none">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-indigo-100 p-3 rounded-full text-indigo-600 shadow-sm">
+                                <i class="fas fa-clock text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg">Horario de Operación</h3>
+                                <p class="text-xs text-gray-500">Controla la apertura y cierre automático de la plataforma.</p>
+                            </div>
+                        </div>
+                        <i id="icon-horario" class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+                    </button>
+                    
+                    <div id="panel-horario" class="hidden border-t border-gray-100 bg-gray-50 p-6">
+                        <div class="max-w-lg">
+                            <p class="text-sm text-gray-600 mb-4">Define el rango en el que los clientes pueden realizar operaciones. Fuera de este horario, el sistema mostrará el mensaje de "Cerrado".</p>
+                            
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Apertura</label>
+                                    <input type="time" id="conf-apertura" class="w-full bg-white border p-3 rounded outline-none focus:border-indigo-500 shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
+                                    <input type="time" id="conf-cierre" class="w-full bg-white border p-3 rounded outline-none focus:border-indigo-500 shadow-sm">
+                                </div>
+                            </div>
+                            <button onclick="guardarHorario()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded hover:bg-indigo-700 transition shadow-md">
+                                <i class="fas fa-save mr-2"></i> Actualizar Horario
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+                    <button onclick="toggleAcordeon('panel-kairo', 'icon-kairo')" class="w-full flex justify-between items-center p-5 text-left bg-white hover:bg-gray-50 transition outline-none">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-purple-100 p-3 rounded-full text-purple-600 shadow-sm">
+                                <i class="fas fa-balance-scale-right text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg">Ajuste Manual Kairoplay</h3>
+                                <p class="text-xs text-gray-500">Calibrar el saldo neto sin crear transacciones.</p>
+                            </div>
+                        </div>
+                        <i id="icon-kairo" class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+                    </button>
+                    
+                    <div id="panel-kairo" class="hidden border-t border-gray-100 bg-gray-50 p-6">
+                        <div class="max-w-lg">
+                            <p class="text-sm text-gray-600 mb-4">
+                                Ingresa un valor para sumar o restar al <strong>Flujo Neto</strong> de Kairoplay en el Dashboard. 
+                                <br><span class="text-xs text-gray-400">(Usa números negativos para restar, ej: -50000)</span>
+                            </p>
+                            
+                            <div class="mb-4">
+                                <label class="block text-xs font-bold text-purple-800 uppercase mb-1">Monto de Ajuste</label>
+                                <div class="flex items-center bg-white rounded border border-purple-200 px-3 py-2 shadow-sm">
+                                    <span class="text-purple-600 font-bold mr-2">$</span>
+                                    <input type="number" id="conf-kairo-valor" class="w-full bg-transparent outline-none text-sm font-bold text-gray-700" placeholder="0">
+                                </div>
+                            </div>
+
+                            <button onclick="guardarAjusteKairo()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 transition shadow-md">
+                                <i class="fas fa-save mr-2"></i> Guardar Ajuste
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-red-50 rounded-xl shadow-sm overflow-hidden border border-red-200 mt-8">
+                    <button onclick="toggleAcordeon('panel-danger', 'icon-danger')" class="w-full flex justify-between items-center p-5 text-left bg-red-50 hover:bg-red-100 transition outline-none group">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-white p-3 rounded-full text-red-600 shadow-sm border border-red-100 group-hover:scale-110 transition">
+                                <i class="fas fa-exclamation-triangle text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-red-900 text-lg">Zona de Peligro</h3>
+                                <p class="text-xs text-red-500 font-bold">Reiniciar todo el sistema (Factory Reset).</p>
+                            </div>
+                        </div>
+                        <i id="icon-danger" class="fas fa-chevron-down text-red-400 transition-transform duration-300"></i>
+                    </button>
+                    
+                    <div id="panel-danger" class="hidden border-t border-red-200 bg-white p-6">
+                        <div class="max-w-lg mx-auto text-center">
+                            <i class="fas fa-radiation text-5xl text-red-500 mb-4 animate-pulse"></i>
+                            <h4 class="text-xl font-bold text-gray-800 mb-2">¿Estás absolutamente seguro?</h4>
+                            <p class="text-sm text-gray-600 mb-6">
+                                Esta acción <strong>ELIMINARÁ</strong>:
+                                <br>• Todo el historial de transacciones.
+                                <br>• Todos los usuarios (Clientes).
+                                <br>• Todas las configuraciones de WhatsApp.
+                                <br><span class="text-red-600 font-bold">No se puede deshacer.</span>
+                            </p>
+                            
+                            <button onclick="borrarBaseDatos()" class="w-full bg-red-600 text-white font-bold py-4 rounded-xl hover:bg-red-700 transition shadow-lg flex items-center justify-center gap-2 transform active:scale-95">
+                                <i class="fas fa-trash-alt"></i> BORRAR TODO EL SISTEMA
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>

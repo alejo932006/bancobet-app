@@ -1,6 +1,6 @@
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://todd-various-experiment-damages.trycloudflare.com/api',
+    apiURL: 'https://outlined-usc-leads-cope.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
@@ -141,14 +141,23 @@ function renderizarLista(datos) {
         const estilo = ESTILOS_OPERACION[tx.tipo_operacion] || { icono: 'fa-circle', color: 'text-gray-500', bg: 'bg-gray-100', signo: '' };
         const claseEstado = ESTILOS_ESTADO[tx.estado] || 'bg-gray-100';
         const fecha = moment(tx.fecha_transaccion).format('D MMM, h:mm a');
-        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
+        
+        // [MEJORA] Agregamos 'maximumFractionDigits: 0' para quitar decimales innecesarios
+        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
         
         const esReversada = tx.estado === 'REVERSADO';
         const claseOpacidad = esReversada ? 'opacity-60 grayscale' : '';
 
+        // --- [ESTO ES LO QUE FALTABA] ---
+        // Verificamos si tiene la marca de editado
+        const htmlEditado = tx.editado 
+            ? `<span class="text-[9px] text-orange-400 italic ml-1 font-normal"><i class="fas fa-pen-nib"></i> Ajustado</span>` 
+            : '';
+        // --------------------------------
+
         let htmlComision = '';
         if (!esReversada && tx.comision > 0) {
-            const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.comision);
+            const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.comision);
             htmlComision = `<p class="text-[10px] text-red-400 font-bold mt-0.5">(- ${comisionFmt} 3%)</p>`;
         }
 
@@ -163,7 +172,9 @@ function renderizarLista(datos) {
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="font-bold ${esReversada ? 'line-through text-gray-400' : estilo.color}">${estilo.signo} ${monto}</p>
+                    <p class="font-bold ${esReversada ? 'line-through text-gray-400' : estilo.color}">
+                        ${estilo.signo} ${monto} ${htmlEditado}
+                    </p>
                     ${htmlComision}
                     <p class="text-xs text-gray-400 font-mono mt-1">#${tx.referencia_externa}</p>
                 </div>
@@ -183,6 +194,7 @@ function abrirModalDetalle(id) {
     document.getElementById('modal-fecha').innerText = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
     document.getElementById('modal-cliente').innerText = CONFIG.usuario.nombre_completo;
     document.getElementById('modal-cedula').innerText = CONFIG.usuario.cedula;
+    
 
     const div = document.getElementById('modal-contenido-dinamico');
     let html = '';
@@ -228,6 +240,12 @@ function abrirModalDetalle(id) {
                       </div>
                       <p class="mt-2"><strong>Cédula a Recargar:</strong> ${tx.cedula_destino || tx.pin_retiro || 'N/A'}</p>`;
         }
+    }
+    else if (tx.tipo_operacion === 'DESCUENTO') {
+        html += `<div class="bg-pink-50 p-3 rounded-xl border border-pink-100 text-center mt-2">
+                    <p class="text-xs text-pink-500 font-bold uppercase mb-1"><i class="fas fa-info-circle mr-1"></i> Detalle del cargo</p>
+                    <p class="text-gray-800 font-bold text-md">"${tx.referencia_externa || 'Ajuste administrativo'}"</p>
+                 </div>`;
     }
     else if (tx.tipo_operacion === 'CONSIGNACION') html += `<p><strong>Llave:</strong> ${tx.llave_bre_b}</p><p><strong>Titular:</strong> ${tx.titular_cuenta}</p>`;
     else if (tx.tipo_operacion === 'ABONO_CAJA') html += '<p class="italic text-gray-500">Depósito Bancario</p>';
