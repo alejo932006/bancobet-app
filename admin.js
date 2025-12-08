@@ -1,4 +1,4 @@
-const API_URL = 'https://todd-various-experiment-damages.trycloudflare.com';
+const API_URL = 'https://todd-various-experiment-damages.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
