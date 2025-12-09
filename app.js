@@ -1,6 +1,9 @@
+let offsetHistorial = 0;
+const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
+
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://outlined-usc-leads-cope.trycloudflare.com/api',
+    apiURL: 'https://vehicles-clothes-oliver-merchant.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
@@ -103,15 +106,57 @@ function cambiarVista(vista) {
 }
 
 // --- HISTORIAL ---
-async function cargarHistorial() {
-    if(CONFIG.historialCache.length === 0) UI.listaHistorial.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i></div>';
+async function cargarHistorial(reset = true) {
+    const btn = document.getElementById('btn-cargar-mas-user');
+    const msg = document.getElementById('msg-fin-user');
+    const lista = document.getElementById('lista-historial');
+
+    if (reset) {
+        // Si es carga inicial o refresco
+        offsetHistorial = 0;
+        CONFIG.historialCache = []; // Limpiamos caché
+        lista.innerHTML = '<div class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+        btn.classList.add('hidden');
+        msg.classList.add('hidden');
+    } else {
+        // Si es "Cargar más"
+        btn.innerText = "Cargando...";
+        btn.disabled = true;
+    }
+
     try {
-        const res = await fetch(`${CONFIG.apiURL}/historial/${CONFIG.usuario.id}`);
+        // Llamada con limit y offset
+        const res = await fetch(`${CONFIG.apiURL}/historial/${CONFIG.usuario.id}?limit=${LIMITE_USER}&offset=${offsetHistorial}`);
         const data = await res.json();
+        
         if (data.success) {
-            CONFIG.historialCache = data.datos;
-            renderizarLista(CONFIG.historialCache);
-        } else renderizarLista([]);
+            if (reset) lista.innerHTML = ''; // Quitamos el spinner solo si es reset
+
+            // Agregamos los nuevos datos al caché global
+            CONFIG.historialCache = CONFIG.historialCache.concat(data.datos);
+            
+            // Renderizamos (false indica que NO limpie el HTML, sino que agregue)
+            renderizarLista(data.datos, reset);
+
+            // Actualizamos offset
+            offsetHistorial += LIMITE_USER;
+
+            // Control del botón
+            if (data.datos.length < LIMITE_USER) {
+                // Si llegaron menos de 10, ya no hay más
+                btn.classList.add('hidden');
+                // Mostramos mensaje de fin solo si ya había datos cargados
+                if (!reset || CONFIG.historialCache.length > 0) msg.classList.remove('hidden');
+            } else {
+                // Si llegaron 10, probablemente hay más
+                btn.classList.remove('hidden');
+                msg.classList.add('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-arrow-down mr-1"></i> Ver movimientos anteriores';
+            }
+        } else {
+            if(reset) lista.innerHTML = '<div class="text-center py-4">Error al cargar.</div>';
+        }
     } catch (e) { console.error(e); }
 }
 
@@ -130,55 +175,95 @@ function aplicarFiltro() {
     renderizarLista(filtrados);
 }
 
-function renderizarLista(datos) {
-    UI.listaHistorial.innerHTML = '';
-    if (datos.length === 0) {
-        UI.listaHistorial.innerHTML = '<div class="text-center py-10 opacity-50"><p>No hay movimientos.</p></div>';
-        return;
+// [MODIFICADO] Renderizar lista con detalles de Casa de Apuestas
+function renderizarLista(datos, limpiar = true) {
+    if (limpiar) {
+        UI.listaHistorial.innerHTML = '';
+        if (datos.length === 0) {
+            UI.listaHistorial.innerHTML = '<div class="text-center py-10 opacity-50"><p>No hay movimientos.</p></div>';
+            return;
+        }
     }
 
     datos.forEach(tx => {
         const estilo = ESTILOS_OPERACION[tx.tipo_operacion] || { icono: 'fa-circle', color: 'text-gray-500', bg: 'bg-gray-100', signo: '' };
         const claseEstado = ESTILOS_ESTADO[tx.estado] || 'bg-gray-100';
         const fecha = moment(tx.fecha_transaccion).format('D MMM, h:mm a');
-        
-        // [MEJORA] Agregamos 'maximumFractionDigits: 0' para quitar decimales innecesarios
         const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
         
         const esReversada = tx.estado === 'REVERSADO';
         const claseOpacidad = esReversada ? 'opacity-60 grayscale' : '';
 
-        // --- [ESTO ES LO QUE FALTABA] ---
-        // Verificamos si tiene la marca de editado
+        // 1. Lógica de "Editado"
         const htmlEditado = tx.editado 
             ? `<span class="text-[9px] text-orange-400 italic ml-1 font-normal"><i class="fas fa-pen-nib"></i> Ajustado</span>` 
             : '';
-        // --------------------------------
 
+        // 2. Lógica de Comisión
         let htmlComision = '';
         if (!esReversada && tx.comision > 0) {
             const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.comision);
             htmlComision = `<p class="text-[10px] text-red-400 font-bold mt-0.5">(- ${comisionFmt} 3%)</p>`;
         }
 
+        // --- [NUEVO] 3. Lógica para mostrar Casa y ID ---
+        let htmlInfoCasa = '';
+        
+        if (['RETIRO', 'RECARGA'].includes(tx.tipo_operacion)) {
+            let nombreCasa = 'BETPLAY';
+            let colorCasa = 'text-blue-600';
+            let idCasa = '---';
+
+            // Detectar si es Kairoplay
+            if (tx.cc_casino === 'KAIROPLAY') {
+                nombreCasa = 'KAIROPLAY';
+                colorCasa = 'text-purple-600';
+                // En Kairo guardamos el ID en pin_retiro
+                idCasa = tx.pin_retiro || '---';
+            } else {
+                // Es Betplay
+                if (tx.tipo_operacion === 'RETIRO') {
+                    // En retiros Betplay, el ID es cc_casino
+                    idCasa = tx.cc_casino || '---';
+                } else {
+                    // En recargas Betplay, el ID es cedula_destino
+                    idCasa = tx.cedula_destino || tx.pin_retiro || '---';
+                }
+            }
+
+            htmlInfoCasa = `
+                <div class="flex items-center text-[10px] mt-1 font-mono bg-gray-50 rounded px-1 w-fit">
+                    <span class="${colorCasa} font-bold mr-1">${nombreCasa}</span>
+                    <span class="text-gray-400 mr-1">|</span>
+                    <span class="text-gray-600 truncate max-w-[80px]">${idCasa}</span>
+                </div>
+            `;
+        }
+        // -----------------------------------------------
+
         const html = `
             <div onclick="abrirModalDetalle(${tx.id})" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between animate-fade-in-up ${claseOpacidad} hover:bg-blue-50 transition">
-                <div class="flex items-center space-x-3">
-                    <div class="p-3 rounded-full ${estilo.bg} ${estilo.color}"><i class="fas ${estilo.icono} text-lg"></i></div>
-                    <div>
-                        <p class="font-bold text-gray-800 text-sm">${tx.tipo_operacion.replace(/_/g, ' ')}</p>
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <div class="p-3 rounded-full ${estilo.bg} ${estilo.color} flex-shrink-0"><i class="fas ${estilo.icono} text-lg"></i></div>
+                    <div class="min-w-0"> <p class="font-bold text-gray-800 text-sm truncate pr-2">${tx.tipo_operacion.replace(/_/g, ' ')}</p>
                         <p class="text-xs text-gray-400">${fecha}</p>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${claseEstado}">${tx.estado}</span>
+                        
+                        ${htmlInfoCasa}
+
                     </div>
                 </div>
-                <div class="text-right">
+                <div class="text-right flex-shrink-0 ml-2">
                     <p class="font-bold ${esReversada ? 'line-through text-gray-400' : estilo.color}">
                         ${estilo.signo} ${monto} ${htmlEditado}
                     </p>
                     ${htmlComision}
-                    <p class="text-xs text-gray-400 font-mono mt-1">#${tx.referencia_externa}</p>
+                    
+                    <div class="mt-1">
+                         <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${claseEstado}">${tx.estado}</span>
+                    </div>
                 </div>
             </div>`;
+        
         UI.listaHistorial.innerHTML += html;
     });
 }

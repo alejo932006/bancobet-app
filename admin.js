@@ -1,21 +1,55 @@
-const API_URL = 'https://outlined-usc-leads-cope.trycloudflare.com/api/admin';
+const API_URL = 'https://vehicles-clothes-oliver-merchant.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
+let offsetMovimientos = 0;
+let offsetHistorialUsuario = 0;
+const LIMITE_CARGA = 50;
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => { // <--- Nota el 'async' aquí
     const vistaGuardada = localStorage.getItem('admin_vista_actual') || 'dashboard';
     const hoy = moment().format('YYYY-MM-DD');
+    
+    // Inicializar inputs de fecha si existen
     const inputInicio = document.getElementById('dash-inicio');
     const inputFin = document.getElementById('dash-fin');
-    
     if(inputInicio && inputFin) {
         inputInicio.value = hoy;
         inputFin.value = hoy;
     }
 
+    // --- [SOLUCIÓN] ESPERAR A QUE CARGUEN LOS USUARIOS ANTES DE SEGUIR ---
+    // Esto asegura que cuando entres a 'descuentos', la lista usuariosCache ya tenga datos.
+    await cargarCacheUsuarios(); 
+    // ---------------------------------------------------------------------
+
+    // Lógica de recuperación de Historial (Tu arreglo anterior)
+    if (vistaGuardada === 'detalle-usuario') {
+        const idGuardado = localStorage.getItem('admin_detalle_id');
+        const nombreGuardado = localStorage.getItem('admin_detalle_nombre');
+
+        if (idGuardado && nombreGuardado) {
+            usuarioActualId = idGuardado;
+            const tituloNombre = document.getElementById('detalle-nombre-usuario');
+            if(tituloNombre) tituloNombre.innerText = nombreGuardado;
+            
+            // Importante: No llamar a cargarVista aquí para evitar doble carga,
+            // pero sí preparar la UI del detalle.
+            document.querySelectorAll('.vista-seccion').forEach(v => v.classList.add('hidden'));
+            const seccion = document.getElementById('vista-detalle-usuario');
+            if (seccion) seccion.classList.remove('hidden');
+            
+            filtrarHistorialDetalle(true); 
+            return; // Salimos para no ejecutar el cargarVista de abajo
+        } else {
+            // Si fallan los datos guardados, volvemos a una vista segura
+            cargarVista('usuarios');
+            return;
+        }
+    }
+
+    // Carga normal para el resto de vistas
     cargarVista(vistaGuardada);
-    cargarCacheUsuarios(); 
 });
 
 async function cargarCacheUsuarios() {
@@ -44,6 +78,7 @@ function cargarVista(vista) {
     if (vista === 'descuentos') {
         cargarUsuariosEnSelect(); // Función auxiliar para llenar el select
         cargarHistorialDescuentos();
+        cargarHistorialPagosKairo();
     }
     if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); cargarAjusteKairo();}
 }
@@ -86,6 +121,15 @@ async function cargarResumen() {
         document.getElementById('dash-usuarios').innerText = data.totalUsuarios;
         document.getElementById('dash-ganancias').innerText = fmt(data.totalGanancias);
 
+        if (data.betplay) {
+            // Si no existe el elemento (por si acaso no has actualizado el HTML aún), validamos
+            const elRecargas = document.getElementById('dash-ganancias-recargas');
+            if (elRecargas) {
+                // Usamos la variable que creamos en el servidor: comision_recargas
+                elRecargas.innerText = fmt(data.betplay.comision_recargas || 0);
+            }
+        }
+
         const ops = data.desgloseOperaciones || {};
         // document.getElementById('dash-retiros').innerText = fmt(ops['RETIRO']);
         document.getElementById('dash-abonos').innerText = fmt(ops['ABONO_CAJA']);
@@ -126,48 +170,71 @@ async function cargarResumen() {
 }
 
 // --- 2. MONITOR GLOBAL ---
-async function cargarMovimientosGlobales() {
+async function cargarMovimientosGlobales(reset = true) {
+    const btnCargar = document.getElementById('btn-cargar-mas');
+    const msgFin = document.getElementById('msg-fin-datos');
+    const tbody = document.getElementById('tabla-movimientos-globales');
+
+    // 1. Si es reset (filtro nuevo o recarga inicial), reiniciamos todo
+    if (reset) {
+        offsetMovimientos = 0;
+        tbody.innerHTML = ''; // Limpiamos la tabla
+        btnCargar.innerText = "Cargar más transacciones";
+        btnCargar.disabled = false;
+        btnCargar.classList.add('hidden');
+        msgFin.classList.add('hidden');
+        transaccionesCache = []; // Limpiamos caché local
+    } else {
+        // Si estamos cargando más, cambiamos texto del botón
+        btnCargar.innerText = "Cargando...";
+        btnCargar.disabled = true;
+    }
+
     const inicio = document.getElementById('global-filtro-inicio').value;
     const fin = document.getElementById('global-filtro-fin').value;
     const texto = document.getElementById('global-filtro-texto').value;
 
-    let url = `${API_URL}/transacciones?_t=${Date.now()}`;
+    // 2. Construimos URL con limit y offset
+    let url = `${API_URL}/transacciones?limit=${LIMITE_CARGA}&offset=${offsetMovimientos}&_t=${Date.now()}`;
     if(inicio && fin) url += `&fechaInicio=${inicio}&fechaFin=${fin}`;
     if(texto) url += `&busqueda=${encodeURIComponent(texto)}`;
 
-    const res = await fetch(url);
-    const txs = await res.json();
-    transaccionesCache = txs;
-    
-    const tbody = document.getElementById('tabla-movimientos-globales');
-    tbody.innerHTML = '';
-
-    if(txs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400">Sin movimientos.</td></tr>'; return; }
-
-    txs.forEach(tx => {
-        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
-        const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
-        const esReversada = tx.estado === 'REVERSADO';
+    try {
+        const res = await fetch(url);
+        const nuevosDatos = await res.json();
         
-        const claseFila = esReversada ? 'bg-gray-100 text-gray-400' : 'hover:bg-gray-50';
-        const claseMonto = esReversada ? 'line-through text-gray-400' : (['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? 'text-green-600' : 'text-red-600');
-        const estadoLabel = esReversada ? '<span class="ml-2 text-[10px] bg-gray-200 text-gray-500 px-1 rounded uppercase">REVERSADO</span>' : '';
+        // Agregamos al caché global (para que funcionen los modales)
+        transaccionesCache = transaccionesCache.concat(nuevosDatos);
 
-        let detalle = `<span class="font-bold">${tx.tipo_operacion.replace(/_/g, ' ')}</span> ${estadoLabel}`;
-        if(tx.referencia_externa) detalle += `<br><span class="text-xs opacity-75">ID: ${tx.referencia_externa}</span>`;
+        if(nuevosDatos.length === 0 && reset) { 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400">Sin movimientos.</td></tr>'; 
+            return; 
+        }
 
-        const btnReversar = esReversada 
-        ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
-        : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
-           <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
-        const indicadorEdicion = tx.editado 
-        ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
-        : '';
-        const tr = `
-        <tr class="...">
-            <td class="px-5 py-3 text-right font-mono font-bold ${claseMonto} whitespace-nowrap">
-                ${['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? '+' : '-'} ${monto}
-                ${indicadorEdicion} </td>
+        // 3. Renderizamos las filas (append)
+        nuevosDatos.forEach(tx => {
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
+            const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
+            const esReversada = tx.estado === 'REVERSADO';
+            
+            const claseFila = esReversada ? 'bg-gray-100 text-gray-400' : 'hover:bg-gray-50';
+            const claseMonto = esReversada ? 'line-through text-gray-400' : (['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? 'text-green-600' : 'text-red-600');
+            const estadoLabel = esReversada ? '<span class="ml-2 text-[10px] bg-gray-200 text-gray-500 px-1 rounded uppercase">REVERSADO</span>' : '';
+
+            let detalle = `<span class="font-bold">${tx.tipo_operacion.replace(/_/g, ' ')}</span> ${estadoLabel}`;
+            if(tx.referencia_externa) detalle += `<br><span class="text-xs opacity-75">ID: ${tx.referencia_externa}</span>`;
+
+            const btnReversar = esReversada 
+            ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
+            : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
+               <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
+            
+            const indicadorEdicion = tx.editado 
+            ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
+            : '';
+
+            const tr = `
+            <tr class="border-b transition ${claseFila}">
                 <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">${fecha}</td>
                 <td class="px-5 py-3">
                     <div class="text-sm font-bold ${esReversada ? 'text-gray-500' : 'text-gray-700'} whitespace-nowrap">${tx.nombre_completo}</div>
@@ -175,7 +242,7 @@ async function cargarMovimientosGlobales() {
                 </td>
                 <td class="px-5 py-3 text-sm whitespace-nowrap">${detalle}</td>
                 <td class="px-5 py-3 text-right font-mono font-bold ${claseMonto} whitespace-nowrap">
-                    ${['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? '+' : '-'} ${monto}
+                    ${['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion) ? '+' : '-'} ${monto} ${indicadorEdicion}
                 </td>
                 <td class="px-5 py-3 text-center whitespace-nowrap">
                     <div class="flex items-center justify-center gap-2">
@@ -184,8 +251,28 @@ async function cargarMovimientosGlobales() {
                     </div>
                 </td>
             </tr>`;
-        tbody.innerHTML += tr;
-    });
+            tbody.innerHTML += tr;
+        });
+
+        // 4. Lógica del botón "Cargar Más"
+        offsetMovimientos += LIMITE_CARGA; // Aumentamos el contador para la próxima vez
+
+        if (nuevosDatos.length < LIMITE_CARGA) {
+            // Si trajimos menos de 50, significa que se acabaron los datos
+            btnCargar.classList.add('hidden');
+            if (!reset && transaccionesCache.length > 0) msgFin.classList.remove('hidden');
+        } else {
+            // Si trajimos 50 exactos, probablemente hay más
+            btnCargar.classList.remove('hidden');
+            btnCargar.innerText = "Cargar más transacciones";
+            btnCargar.disabled = false;
+            btnCargar.innerHTML = '<i class="fas fa-arrow-down mr-2"></i> Cargar más transacciones';
+        }
+
+    } catch (e) {
+        console.error(e);
+        btnCargar.innerText = "Error al cargar";
+    }
 }
 
 async function cargarUsuarios() {
@@ -372,98 +459,127 @@ async function eliminarUsuario(id) {
 // --- 4. HISTORIAL DETALLADO ---
 async function verHistorialUsuario(id, nombre) {
     usuarioActualId = id;
+    
+    // --- ESTAS 2 LÍNEAS SON LA SOLUCIÓN ---
+    localStorage.setItem('admin_detalle_id', id);
+    localStorage.setItem('admin_detalle_nombre', nombre);
+    // --------------------------------------
+
     document.getElementById('detalle-nombre-usuario').innerText = nombre;
     document.getElementById('hist-filtro-inicio').value = '';
     document.getElementById('hist-filtro-fin').value = '';
+    
     cargarVista('detalle-usuario');
-    filtrarHistorialDetalle();
+    filtrarHistorialDetalle(true);
 }
 
-async function filtrarHistorialDetalle() {
+async function filtrarHistorialDetalle(reset = true) {
     if(!usuarioActualId) return;
+
+    const btnCargar = document.getElementById('btn-cargar-mas-hist');
+    const msgFin = document.getElementById('msg-fin-hist');
+    const tbody = document.getElementById('tabla-detalle-historial');
+
+    // Configuración inicial según si es reset o carga incremental
+    if (reset) {
+        offsetHistorialUsuario = 0;
+        tbody.innerHTML = '';
+        btnCargar.classList.add('hidden');
+        msgFin.classList.add('hidden');
+        btnCargar.innerText = "Ver movimientos anteriores";
+        btnCargar.disabled = false;
+        // Limpiamos caché local si es necesario, o lo reiniciamos
+        transaccionesCache = []; 
+    } else {
+        btnCargar.innerText = "Cargando...";
+        btnCargar.disabled = true;
+    }
+    
     const inicio = document.getElementById('hist-filtro-inicio').value;
     const fin = document.getElementById('hist-filtro-fin').value;
-    let url = `${API_URL}/usuario/${usuarioActualId}/historial`;
-    if(inicio && fin) url += `?fechaInicio=${inicio}&fechaFin=${fin}`;
+    const LIMITE = 50;
+    
+    // URL con Limit y Offset
+    let url = `${API_URL}/usuario/${usuarioActualId}/historial?limit=${LIMITE}&offset=${offsetHistorialUsuario}&_t=${Date.now()}`;
+    if(inicio && fin) url += `&fechaInicio=${inicio}&fechaFin=${fin}`;
 
     try {
         const res = await fetch(url);
-        const txs = await res.json();
-        transaccionesCache = txs;
+        const data = await res.json();
         
-        const tbody = document.getElementById('tabla-detalle-historial');
-        tbody.innerHTML = '';
+        // Concatenamos al caché para que los modales funcionen
+        if (reset) {
+            transaccionesCache = data.datos;
+        } else {
+            transaccionesCache = transaccionesCache.concat(data.datos);
+        }
+        
+        const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
+        
+        // --- PINTAR RESUMEN (Siempre se actualiza porque el server lo calcula global) ---
+        // Esto es bueno porque si el cliente tenía filtro de fecha, el resumen debe cuadrar
+        document.getElementById('hist-saldo-actual').innerText = fmt(data.saldoActual);
+        document.getElementById('hist-entradas').innerText = fmt(data.resumen.entradas);
+        document.getElementById('hist-salidas').innerText = fmt(data.resumen.salidas);
+        
+        const elNeto = document.getElementById('hist-neto');
+        elNeto.innerText = (data.resumen.neto > 0 ? '+' : '') + fmt(data.resumen.neto);
+        if(data.resumen.neto > 0) elNeto.className = "text-lg font-bold text-green-600 mt-1";
+        else if(data.resumen.neto < 0) elNeto.className = "text-lg font-bold text-red-600 mt-1";
+        else elNeto.className = "text-lg font-bold text-gray-400 mt-1";
 
-        if(txs.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">Sin movimientos.</td></tr>'; 
+        // --- PINTAR TABLA ---
+        if(data.datos.length === 0 && reset) { 
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400 italic">No hay movimientos en este periodo.</td></tr>'; 
             return; 
         }
 
-        txs.forEach(tx => {
-            // Formateadores
-            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
+        data.datos.forEach(tx => {
+            const monto = fmt(tx.monto);
             const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
             const esReversada = tx.estado === 'REVERSADO';
             
-            // 1. DEFINIR COLORES Y SIGNOS (Esto faltaba)
             const esIngreso = ['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(tx.tipo_operacion);
             const signo = esIngreso ? '+' : '-';
-            
-            // Si está reversada, tachado gris. Si no, Verde para ingresos, Rojo para salidas.
-            const claseColorMonto = esReversada 
-                ? 'line-through text-gray-400' 
-                : (esIngreso ? 'text-green-600' : 'text-red-600');
+            const color = esReversada ? 'text-gray-400 line-through' : (esIngreso ? 'text-green-600' : 'text-red-600');
 
-            const claseFila = esReversada ? 'bg-gray-100 text-gray-400' : 'hover:bg-gray-50';
-
-            // 2. COMISIÓN
             let htmlComision = '';
-            if (tx.comision > 0) {
-                const comisionFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.comision);
-                htmlComision = `<div class="text-[10px] text-red-400 font-normal mt-1">(- ${comisionFmt} 3%)</div>`;
-            }
+            if (tx.comision > 0) htmlComision = `<div class="text-[10px] text-red-400 font-normal">(- ${fmt(tx.comision)} com)</div>`;
 
-            // 3. DETALLE
-            let detalle = tx.tipo_operacion.replace(/_/g, ' ');
-            if(esReversada) detalle += ' (REVERSADO)';
-
-            // 4. INDICADOR DE EDICIÓN
-            const indicadorEdicion = tx.editado 
-                ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
-                : '';
-
-            // 5. BOTONES
-            const btnReversar = esReversada 
-                ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
-                : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
-                   <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
-
-            // 6. CONSTRUCCIÓN DE LA FILA (Orden corregido: Fecha -> Tipo -> Monto -> Ref -> Acciones)
             const tr = `
-                <tr class="border-b border-gray-100 ${claseFila}">
-                    <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">${fecha}</td>
-                    
-                    <td class="px-5 py-3 font-bold text-sm whitespace-nowrap">${detalle}</td>
-                    
-                    <td class="px-5 py-3 text-right font-mono font-bold ${claseColorMonto} whitespace-nowrap">
-                        ${signo} ${monto} ${indicadorEdicion}
-                        ${esReversada ? '' : htmlComision}
+                <tr class="border-b hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 text-xs text-gray-500">${fecha}</td>
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">
+                        ${tx.tipo_operacion.replace(/_/g, ' ')} ${esReversada ? '(REV)' : ''}
                     </td>
-                    
-                    <td class="px-5 py-3 text-xs opacity-75 whitespace-nowrap">Ref: ${tx.referencia_externa || tx.id}</td>
-                    
-                    <td class="px-5 py-3 text-center whitespace-nowrap">
-                        <div class="flex items-center justify-center gap-2">
-                            <button onclick="abrirModalDetalle(${tx.id})" class="text-blue-500 hover:text-blue-700 transition"><i class="fas fa-eye"></i></button>
-                            ${btnReversar}
-                        </div>
+                    <td class="px-4 py-3 text-right font-mono font-bold ${color}">
+                        ${signo} ${monto} ${tx.editado ? '<i class="fas fa-pen text-[10px] text-orange-400"></i>' : ''}
+                        ${!esReversada ? htmlComision : ''}
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-400">Ref: ${tx.referencia_externa || 'N/A'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="abrirModalDetalle(${tx.id})" class="text-blue-500 hover:text-blue-700"><i class="fas fa-eye"></i></button>
+                        ${!esReversada ? `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 mx-2"><i class="fas fa-pen"></i></button><button onclick="eliminarTransaccion(${tx.id})" class="text-red-400"><i class="fas fa-undo"></i></button>` : ''}
                     </td>
                 </tr>`;
             tbody.innerHTML += tr;
         });
-    } catch (e) {
-        console.error("Error cargando historial detalle", e);
-    }
+
+        // --- LÓGICA DE PAGINACIÓN ---
+        offsetHistorialUsuario += LIMITE; // Preparamos el salto para la siguiente
+        
+        if (data.datos.length < LIMITE) {
+            // Ya no hay más datos (trajimos menos de 50)
+            btnCargar.classList.add('hidden');
+            if (!reset) msgFin.classList.remove('hidden'); // Solo mostramos "Fin" si ya habíamos cargado algo antes
+        } else {
+            // Posiblemente hay más
+            btnCargar.classList.remove('hidden');
+            btnCargar.disabled = false;
+            btnCargar.innerHTML = '<i class="fas fa-arrow-down mr-2"></i> Ver movimientos anteriores';
+        }
+
+    } catch (e) { console.error(e); }
 }
 
 // --- 5. REVERSAR ---
@@ -860,43 +976,53 @@ async function procesarDescuento(e) {
 }
 
 async function cargarHistorialDescuentos() {
-    // Reutilizamos el endpoint de transacciones pero filtramos en el cliente (o podrías crear un endpoint específico)
-    // Para simplificar, pedimos las ultimas transacciones y filtramos las que sean 'DESCUENTO'
-    const res = await fetch(`${API_URL}/transacciones`); 
-    const txs = await res.json();
-    
-    const descuentos = txs.filter(t => t.tipo_operacion === 'DESCUENTO').slice(0, 10); // Solo las ultimas 10
-    const tbody = document.getElementById('tabla-descuentos-recent');
-    tbody.innerHTML = '';
+    // 1. Obtener filtros
+    const inicio = document.getElementById('desc-filtro-inicio').value;
+    const fin = document.getElementById('desc-filtro-fin').value;
+    const busqueda = document.getElementById('busqueda-descuentos').value;
 
-    if (descuentos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400 text-xs">No hay cobros recientes</td></tr>';
-        return;
-    }
+    // 2. Construir URL con el nuevo parámetro 'tipo=DESCUENTO'
+    let url = `${API_URL}/transacciones?tipo=DESCUENTO&_t=${Date.now()}`;
+    if(inicio && fin) url += `&fechaInicio=${inicio}&fechaFin=${fin}`;
+    if(busqueda) url += `&busqueda=${encodeURIComponent(busqueda)}`;
 
-    descuentos.forEach(d => {
-        const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(d.monto);
-        const fecha = moment(d.fecha_transaccion).format('DD/MM HH:mm');
-        const esReversada = d.estado === 'REVERSADO';
+    try {
+        const res = await fetch(url); 
+        const descuentos = await res.json();
         
-        const tr = `
-            <tr class="border-b ${esReversada ? 'opacity-50 bg-gray-100' : ''}">
-                <td class="py-3 text-xs text-gray-500">${fecha}</td>
-                <td class="py-3">
-                    <div class="text-xs font-bold text-gray-700">${d.nombre_completo}</div>
-                    <div class="text-[10px] text-gray-400 italic">${d.referencia_externa || 'Sin motivo'}</div>
-                </td>
-                <td class="py-3 text-right font-mono text-xs font-bold text-pink-600 ${esReversada ? 'line-through' : ''}">${monto}</td>
-                <td class="py-3 text-center">
-                    ${esReversada ? 
-                        '<span class="text-[10px] bg-gray-200 px-1 rounded">REVERSADO</span>' : 
-                        `<button onclick="eliminarTransaccion(${d.id})" class="text-red-400 hover:text-red-600" title="Reversar"><i class="fas fa-undo"></i></button>`
-                    }
-                </td>
-            </tr>
-        `;
-        tbody.innerHTML += tr;
-    });
+        const tbody = document.getElementById('tabla-descuentos-recent');
+        tbody.innerHTML = '';
+
+        if (descuentos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-gray-400 text-xs italic">No se encontraron cobros.</td></tr>';
+            return;
+        }
+
+        descuentos.forEach(d => {
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(d.monto);
+            const fecha = moment(d.fecha_transaccion).format('DD/MM HH:mm');
+            const esReversada = d.estado === 'REVERSADO';
+            
+            const tr = `
+                <tr class="border-b hover:bg-pink-50 transition ${esReversada ? 'opacity-50 bg-gray-50' : ''}">
+                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${fecha}</td>
+                    <td class="px-3 py-2">
+                        <div class="text-xs font-bold text-gray-700">${d.nombre_completo}</div>
+                        <div class="text-[10px] text-gray-400 italic truncate max-w-[120px]" title="${d.referencia_externa}">${d.referencia_externa || 'Sin motivo'}</div>
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono text-xs font-bold text-pink-600 ${esReversada ? 'line-through' : ''}">${monto}</td>
+                    <td class="px-3 py-2 text-center">
+                        ${esReversada ? 
+                            '<span class="text-[9px] bg-gray-200 px-1 rounded text-gray-500">REV</span>' : 
+                            `<button onclick="eliminarTransaccion(${d.id})" class="text-red-300 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`
+                        }
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += tr;
+        });
+
+    } catch (e) { console.error("Error cargando historial descuentos", e); }
 }
 
 function toggleAcordeon(panelId, iconId) {
@@ -1058,5 +1184,117 @@ async function borrarBaseDatos() {
         } catch (e) {
             Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
         }
+    }
+}
+
+// --- GESTIÓN PAGOS EXTERNOS KAIRO ---
+
+async function procesarPagoKairo(e) {
+    e.preventDefault();
+    
+    const beneficiario = document.getElementById('kairo-beneficiario').value;
+    const motivo = document.getElementById('kairo-motivo').value;
+    const monto = document.getElementById('kairo-monto').value;
+
+    if(!monto || !motivo) return Swal.fire('Error', 'Completa los campos', 'warning');
+
+    const confirm = await Swal.fire({
+        title: '¿Registrar Pago Kairo?',
+        text: `Saldrán $${monto} del flujo neto para "${beneficiario}".`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#9333ea', // Morado
+        confirmButtonText: 'Sí, registrar'
+    });
+
+    if (confirm.isConfirmed) {
+        try {
+            const res = await fetch(`${API_URL}/kairo-pagos`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ beneficiario, descripcion: motivo, monto })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                Swal.fire('Éxito', 'Pago registrado. El saldo Kairo ha disminuido.', 'success');
+                // Limpiar form
+                document.getElementById('kairo-beneficiario').value = '';
+                document.getElementById('kairo-motivo').value = '';
+                document.getElementById('kairo-monto').value = '';
+                
+                cargarHistorialPagosKairo(); // Refrescar tabla
+            } else {
+                Swal.fire('Error', data.error, 'error');
+            }
+        } catch (error) { console.error(error); }
+    }
+}
+
+async function cargarHistorialPagosKairo() {
+    // 1. Obtener valores de los filtros
+    const inicio = document.getElementById('kairo-filtro-inicio').value;
+    const fin = document.getElementById('kairo-filtro-fin').value;
+    const texto = document.getElementById('kairo-filtro-texto').value;
+
+    // 2. Construir URL con parámetros
+    let url = `${API_URL}/kairo-pagos?_t=${Date.now()}`; // _t evita caché del navegador
+    if(inicio && fin) url += `&inicio=${inicio}&fin=${fin}`;
+    if(texto) url += `&busqueda=${encodeURIComponent(texto)}`;
+
+    try {
+        const res = await fetch(url);
+        const pagos = await res.json();
+        
+        const tbody = document.getElementById('tabla-pagos-kairo');
+        tbody.innerHTML = '';
+
+        if (pagos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400 text-xs italic">No se encontraron pagos con estos filtros.</td></tr>';
+            return;
+        }
+
+        pagos.forEach(p => {
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(p.monto);
+            const fecha = moment(p.fecha).format('DD/MM HH:mm');
+            
+            const tr = `
+                <tr class="hover:bg-purple-50 transition group">
+                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${fecha}</td>
+                    <td class="px-3 py-2">
+                        <div class="text-xs font-bold text-gray-700">${p.beneficiario || 'Externo'}</div>
+                        <div class="text-[10px] text-gray-400 italic">${p.descripcion}</div>
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono text-xs font-bold text-red-500 whitespace-nowrap">- ${monto}</td>
+                    <td class="px-3 py-2 text-center">
+                        <button onclick="eliminarPagoKairo(${p.id})" class="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100" title="Eliminar / Reversar">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += tr;
+        });
+    } catch (e) { console.error(e); }
+}
+
+async function eliminarPagoKairo(id) {
+    const confirm = await Swal.fire({
+        title: '¿Eliminar registro?',
+        text: "El monto volverá a sumar al saldo de Kairo.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Sí, eliminar'
+    });
+
+    if(confirm.isConfirmed) {
+        try {
+            const res = await fetch(`${API_URL}/kairo-pagos/${id}`, { method: 'DELETE' });
+            if(res.ok) {
+                Swal.fire('Eliminado', 'El pago fue anulado.', 'success');
+                cargarHistorialPagosKairo();
+            }
+        } catch(e) { Swal.fire('Error', 'No se pudo eliminar', 'error'); }
     }
 }

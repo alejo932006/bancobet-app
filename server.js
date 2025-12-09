@@ -73,9 +73,19 @@ app.get('/api/lista-usuarios', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// [MODIFICADO] Historial del cliente con paginación
 app.get('/api/historial/:usuarioId', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM transacciones WHERE usuario_id = $1 ORDER BY fecha_transaccion DESC LIMIT 50', [req.params.usuarioId]);
+        const { limit, offset } = req.query;
+        
+        // Configuramos 10 por defecto, como pediste
+        const limite = parseInt(limit) || 10; 
+        const salto = parseInt(offset) || 0;
+
+        const result = await pool.query(
+            'SELECT * FROM transacciones WHERE usuario_id = $1 ORDER BY fecha_transaccion DESC LIMIT $2 OFFSET $3', 
+            [req.params.usuarioId, limite, salto]
+        );
         res.json({ success: true, datos: result.rows });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -219,6 +229,8 @@ app.get('/api/admin/resumen', async (req, res) => {
         }
         const ajusteRes = await pool.query("SELECT valor FROM configuracion_global WHERE clave = 'kairo_ajuste_saldo'");
         const ajusteKairo = parseFloat(ajusteRes.rows.length > 0 ? ajusteRes.rows[0].valor : 0);
+        const pagosExternosRes = await pool.query("SELECT SUM(monto) as total FROM pagos_kairo_externos");
+        const totalPagosKairo = parseFloat(pagosExternosRes.rows[0].total || 0);
         const saldoRealRes = await pool.query("SELECT SUM(saldo_actual) as total FROM usuarios WHERE rol = 'cliente'");
         let totalBancoReal = parseFloat(saldoRealRes.rows[0].total || 0);
 
@@ -272,6 +284,7 @@ app.get('/api/admin/resumen', async (req, res) => {
         });
         
         const numUsuarios = await pool.query("SELECT COUNT(*) as total FROM usuarios WHERE rol = 'cliente'");
+        const comisionRecargasBetplay = bRecargas * 0.055;
 
         res.json({
             success: true,
@@ -282,20 +295,17 @@ app.get('/api/admin/resumen', async (req, res) => {
             
             // KAIROPLAY MODIFICADO
             kairo: {
-                // [CAMBIO] Quitamos el '* -1'. Ahora se muestra positivo.
-                // Ejemplo: Si retiraste 200.000, se ve "200.000".
                 retiros: kRetiros, 
-                
                 recargas: kRecargas, 
-                
-                // La lógica matemática se MANTIENE (Recargas - Retiros)
-                // Ejemplo: 500.000 (Recarga) - 200.000 (Retiro) = 300.000 (Neto)
-                saldo: (kRecargas - kRetiros) + ajusteKairo
+                pagos_externos: totalPagosKairo, // Opcional: para mostrarlo si quieres
+                // FÓRMULA ACTUALIZADA: (Recargas - Retiros) + Ajuste - PAGOS EXTERNOS
+                saldo: (kRecargas - kRetiros) + ajusteKairo - totalPagosKairo
             },
             
             betplay: {
                 retiros: bRetiros,
                 recargas: bRecargas,
+                comision_recargas: comisionRecargasBetplay,
                 saldo: bRetiros - bRecargas
             }
         });
@@ -378,21 +388,128 @@ app.delete('/api/admin/usuarios/:id', async (req, res) => {
 });
 
 app.get('/api/admin/usuario/:id/historial', async (req, res) => {
-    const { id } = req.params; const { fechaInicio, fechaFin } = req.query;
-    let query = `SELECT * FROM transacciones WHERE usuario_id = $1`; const params = [id];
-    if (fechaInicio && fechaFin) { query += ` AND fecha_transaccion BETWEEN $2 AND $3`; params.push(fechaInicio, fechaFin); }
-    query += ` ORDER BY fecha_transaccion DESC`;
-    try { const result = await pool.query(query, params); res.json(result.rows); } catch (err) { res.status(500).json({ error: err.message }); }
+    const { id } = req.params;
+    const { fechaInicio, fechaFin, limit, offset } = req.query; // Recibimos limit y offset
+
+    // Valores por defecto
+    const limite = parseInt(limit) || 50;
+    const salto = parseInt(offset) || 0;
+
+    const client = await pool.connect();
+    try {
+        // 1. Saldo Actual (Igual que antes)
+        const userRes = await client.query('SELECT saldo_actual FROM usuarios WHERE id = $1', [id]);
+        const saldoActual = userRes.rows[0]?.saldo_actual || 0;
+
+        // 2. Filtros de fecha (Igual que antes)
+        let filtroFecha = "";
+        const paramsStats = [id];
+        
+        if (fechaInicio && fechaFin) {
+            filtroFecha = ` AND fecha_transaccion::date BETWEEN $2 AND $3`;
+            paramsStats.push(fechaInicio, fechaFin);
+        }
+
+        // 3. ESTADÍSTICAS (Calculamos sobre TODO el rango, sin límite, para que los cuadros de resumen sean correctos)
+        const statsQuery = `
+            SELECT tipo_operacion, SUM(monto) as total,
+            SUM(CASE WHEN cc_casino = 'KAIROPLAY' THEN 0 ELSE comision END) as total_comision
+            FROM transacciones
+            WHERE usuario_id = $1 AND estado = 'APROBADO' ${filtroFecha}
+            GROUP BY tipo_operacion
+        `;
+        const statsRes = await client.query(statsQuery, paramsStats);
+
+        let entradas = 0;
+        let salidas = 0;
+        statsRes.rows.forEach(r => {
+            const montoBruto = parseFloat(r.total || 0);
+            const comision = parseFloat(r.total_comision || 0);
+            if (['RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO'].includes(r.tipo_operacion)) {
+                entradas += (montoBruto - comision);
+            } else {
+                salidas += montoBruto;
+            }
+        });
+
+        // 4. LISTA DE TRANSACCIONES (Aquí APLICAMOS la paginación)
+        // Necesitamos un array de parámetros nuevo para esta consulta porque agregamos limit y offset al final
+        const paramsLista = [...paramsStats, limite, salto]; 
+        
+        // El índice del límite será: paramsStats.length + 1
+        // El índice del offset será: paramsStats.length + 2
+        const idxLimit = paramsStats.length + 1;
+        const idxOffset = paramsStats.length + 2;
+
+        const listaQuery = `
+            SELECT * FROM transacciones 
+            WHERE usuario_id = $1 ${filtroFecha} 
+            ORDER BY fecha_transaccion DESC 
+            LIMIT $${idxLimit} OFFSET $${idxOffset}
+        `;
+        
+        const listaRes = await client.query(listaQuery, paramsLista);
+
+        res.json({
+            saldoActual: saldoActual,
+            resumen: { entradas, salidas, neto: entradas - salidas },
+            datos: listaRes.rows // Solo devuelve las 50 (o limit) filas solicitadas
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
 });
 
+// [MODIFICADO] Endpoint transacciones con paginación
 app.get('/api/admin/transacciones', async (req, res) => {
-    const { fechaInicio, fechaFin, busqueda } = req.query;
-    let query = `SELECT t.*, u.nombre_completo, u.cedula FROM transacciones t JOIN usuarios u ON t.usuario_id = u.id WHERE 1=1`;
-    const params = []; let paramCount = 1;
-    if (fechaInicio && fechaFin) { query += ` AND t.fecha_transaccion BETWEEN $${paramCount} AND $${paramCount + 1}`; params.push(fechaInicio, fechaFin); paramCount += 2; }
-    if (busqueda) { query += ` AND (u.nombre_completo ILIKE $${paramCount} OR u.cedula ILIKE $${paramCount} OR t.referencia_externa ILIKE $${paramCount} OR CAST(t.id AS TEXT) = $${paramCount})`; params.push(`%${busqueda}%`); paramCount++; }
-    query += ` ORDER BY t.fecha_transaccion DESC LIMIT 100`;
-    try { const result = await pool.query(query, params); res.json(result.rows); } catch (err) { res.status(500).json({ error: err.message }); }
+    // Recibimos limit y offset, por defecto 50 y 0
+    const { fechaInicio, fechaFin, busqueda, tipo, limit, offset } = req.query; 
+    
+    // Convertimos a números seguros
+    const limite = parseInt(limit) || 50;
+    const salto = parseInt(offset) || 0;
+
+    let query = `SELECT t.*, u.nombre_completo, u.cedula 
+                 FROM transacciones t 
+                 JOIN usuarios u ON t.usuario_id = u.id 
+                 WHERE 1=1`;
+    
+    const params = []; 
+    let paramCount = 1;
+
+    // 1. Filtro Fecha
+    if (fechaInicio && fechaFin) { 
+        query += ` AND t.fecha_transaccion::date BETWEEN $${paramCount} AND $${paramCount + 1}`; 
+        params.push(fechaInicio, fechaFin); 
+        paramCount += 2; 
+    }
+    
+    // 2. Filtro Búsqueda
+    if (busqueda) { 
+        query += ` AND (u.nombre_completo ILIKE $${paramCount} OR u.cedula ILIKE $${paramCount} OR t.referencia_externa ILIKE $${paramCount} OR CAST(t.id AS TEXT) = $${paramCount})`; 
+        params.push(`%${busqueda}%`); 
+        paramCount++; 
+    }
+
+    // 3. Filtro por Tipo
+    if (tipo) {
+        query += ` AND t.tipo_operacion = $${paramCount}`;
+        params.push(tipo);
+        paramCount++;
+    }
+
+    // [MODIFICADO] Aplicamos Paginación dinámica
+    query += ` ORDER BY t.fecha_transaccion DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(limite, salto);
+    
+    try { 
+        const result = await pool.query(query, params); 
+        res.json(result.rows); 
+    } 
+    catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/transacciones/:id', async (req, res) => {
@@ -712,6 +829,56 @@ app.post('/api/admin/reset-db', async (req, res) => {
     } finally {
         client.release();
     }
+});
+
+// [MODIFICADO] OBTENER PAGOS EXTERNOS KAIRO (CON FILTROS)
+app.get('/api/admin/kairo-pagos', async (req, res) => {
+    const { inicio, fin, busqueda } = req.query;
+    
+    // Consulta base
+    let query = 'SELECT * FROM pagos_kairo_externos WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    // 1. Filtro por Fechas
+    if (inicio && fin) {
+        query += ` AND fecha::date BETWEEN $${paramCount} AND $${paramCount + 1}`;
+        params.push(inicio, fin);
+        paramCount += 2;
+    }
+
+    // 2. Filtro por Texto (Beneficiario o Descripción)
+    if (busqueda) {
+        query += ` AND (beneficiario ILIKE $${paramCount} OR descripcion ILIKE $${paramCount})`;
+        params.push(`%${busqueda}%`); // El % es para buscar coincidencias parciales
+        paramCount++;
+    }
+
+    // Ordenar y limitar (aumentamos el límite a 100 para búsquedas)
+    query += ' ORDER BY fecha DESC LIMIT 100';
+
+    try {
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/kairo-pagos', async (req, res) => {
+    const { descripcion, beneficiario, monto } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO pagos_kairo_externos (descripcion, beneficiario, monto) VALUES ($1, $2, $3)',
+            [descripcion, beneficiario, parseFloat(monto)]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/admin/kairo-pagos/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM pagos_kairo_externos WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });
