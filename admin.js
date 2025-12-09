@@ -359,6 +359,15 @@ async function abrirModalUsuario() {
                             </div>
                         </div>
                         <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Cupo Sobregiro</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-xs">$</span>
+                                <input id="swal-sobregiro" type="number" class="w-full pl-6 pr-3 py-2 rounded border border-gray-300 focus:border-red-500 outline-none transition font-mono text-red-600" placeholder="0">
+                            </div>
+                            <p class="text-[9px] text-gray-400">Monto negativo permitido (Crédito)</p>
+                        </div>
+                        
+                        <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">Rol</label>
                             <select id="swal-rol" class="w-full px-3 py-2 rounded border border-gray-300 focus:border-blue-500 outline-none bg-white">
                                 <option value="cliente">Cliente</option>
@@ -405,7 +414,8 @@ async function abrirModalUsuario() {
                 password: password,
                 saldoInicial: document.getElementById('swal-saldo').value,
                 rol: document.getElementById('swal-rol').value,
-                permisos: document.getElementById('swal-permisos').value
+                permisos: document.getElementById('swal-permisos').value,
+                sobregiro: document.getElementById('swal-sobregiro').value
             };
         }
     });
@@ -660,6 +670,19 @@ async function editarUsuario(id) {
                             </select>
                         </div>
                     </div>
+                    <div class="mt-3 bg-red-50 p-3 rounded-lg border border-red-100">
+                        <p class="text-xs font-bold text-red-800 uppercase mb-2 border-b border-red-200 pb-1">
+                            <i class="fas fa-hand-holding-usd mr-1"></i> Línea de Crédito
+                        </p>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Límite de Sobregiro</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-xs">$</span>
+                                <input id="edit-sobregiro" type="number" class="w-full pl-6 pr-3 py-2 rounded border border-red-200 focus:border-red-500 outline-none transition font-mono text-red-700 font-bold" value="${u.limite_sobregiro || 0}">
+                            </div>
+                            <p class="text-[9px] text-gray-500 mt-1">El usuario podrá operar hasta tener saldo negativo de este valor.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="p-3 rounded-lg border-2 ${u.activo ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}">
@@ -694,7 +717,8 @@ async function editarUsuario(id) {
                 password: document.getElementById('edit-pass').value,
                 rol: document.getElementById('edit-rol').value,
                 permisos: document.getElementById('edit-permisos').value,
-                activo: document.getElementById('edit-activo').value === 'true'
+                activo: document.getElementById('edit-activo').value === 'true',
+                sobregiro: document.getElementById('edit-sobregiro').value
             };
         }
     });

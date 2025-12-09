@@ -569,24 +569,26 @@ async function procesarTransaccion(e) {
 
             // --- 1. CASO RETIRO (FORMATO NUEVO VERTICAL) ---
             if(tipo === 'RETIRO') {
-                // Nota: La variable 'titular' ya no se usa en el mensaje, 
-                // pero la dejamos por si la lógica interna la necesita para validaciones.
-                let cedulaCasino = "";
-                let pin = "";
+                let infoEspecifica = "";
 
                 if(casino === 'KAIROPLAY') {
-                    cedulaCasino = "N/A (Kairo)";
-                    pin = document.getElementById('id_kairo_retiro').value; 
+                    // EN KAIROPLAY: Solo mostramos el PIN (ID de transferencia)
+                    // Eliminamos la línea de "Cédula Registrada"
+                    const pin = document.getElementById('id_kairo_retiro').value; 
+                    infoEspecifica = `Pin de retiro: ${pin}`;
                 } else {
-                    cedulaCasino = document.getElementById('cc_casino').value;
-                    pin = document.getElementById('pin_retiro').value;
+                    // EN BETPLAY: Mantenemos ambos datos
+                    const cedulaCasino = document.getElementById('cc_casino').value;
+                    const pin = document.getElementById('pin_retiro').value;
+                    infoEspecifica = `Cedula Registrada en casino: ${cedulaCasino}
+Pin de retiro: ${pin}`;
                 }
 
                 mensajeWhatsApp = `
+Casino:${casino}               
 Usuario: ${nombreCliente}
 Operación: Retiro
-Cedula Registrada en casino: ${cedulaCasino}
-Pin de retiro: ${pin}
+${infoEspecifica}
 Valor del retiro: ${monto}
 --------------------
 ID referencia: ${idTx}`;
@@ -594,17 +596,23 @@ ID referencia: ${idTx}`;
 
             // --- 2. CASO RECARGA (FORMATO NUEVO VERTICAL) ---
             else if(tipo === 'RECARGA') {
-                let cuenta = "";
+                let infoRecarga = "";
+                
                 if(casino === 'KAIROPLAY') {
-                    cuenta = document.getElementById('id_kairo_recarga').value;
+                    // KAIROPLAY: Mostramos el ID de Usuario Kairo
+                    const idKairo = document.getElementById('id_kairo_recarga').value;
+                    infoRecarga = `ID Kairoplay: ${idKairo}`;
                 } else {
-                    cuenta = document.getElementById('cedula_recarga').value;
+                    // BETPLAY: Mostramos la Cédula
+                    const cedula = document.getElementById('cedula_recarga').value;
+                    infoRecarga = `Cedula a Recargar: ${cedula}`;
                 }
 
                 mensajeWhatsApp = `
+Casino: ${casino}                
 Operacion: Recarga                
 Usuario: ${nombreCliente}
-Cedula Cuenta: ${cuenta}
+${infoRecarga}
 Valor: ${monto}
 ----------------------
 id referencia: ${idTx}`;

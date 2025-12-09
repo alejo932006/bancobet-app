@@ -88,7 +88,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/usuario/:id', async (req, res) => {
     try {
         // [MODIFICADO] Agregamos 'activo' a la lista de campos
-        const result = await pool.query('SELECT id, nombre_completo, cedula, saldo_actual, rol, activo FROM usuarios WHERE id = $1', [req.params.id]);
+        const result = await pool.query('SELECT id, nombre_completo, cedula, saldo_actual, rol, activo, limite_sobregiro FROM usuarios WHERE id = $1', [req.params.id]);
         
         if (result.rows.length > 0) res.json({ success: true, usuario: result.rows[0] });
         else res.status(404).json({ success: false });
@@ -234,10 +234,24 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
             } else {
                 // Es una salida (RECARGA, CONSIGNACIÓN, ETC)
                 operacion = "-"; // Sale dinero del cliente
+            
+                // --- INICIO CAMBIO SOBREGIRO ---
+                // 1. Traemos el saldo actual Y el límite de sobregiro del usuario
+                const saldoRes = await client.query('SELECT saldo_actual, limite_sobregiro FROM usuarios WHERE id = $1', [data.usuario_id]);
+                const usuario = saldoRes.rows[0];
                 
-                // Validamos saldo SIEMPRE (Sea Kairo o Betplay, el cliente debe tener plata)
-                const saldoRes = await client.query('SELECT saldo_actual FROM usuarios WHERE id = $1', [data.usuario_id]);
-                if (saldoRes.rows[0].saldo_actual < montoBruto) throw new Error("Saldo insuficiente");
+                // 2. Convertimos a número (si no tiene límite asignado, asumimos 0)
+                const limite = parseFloat(usuario.limite_sobregiro || 0);
+                
+                // 3. Calculamos la capacidad real de gasto: (Saldo que tiene) + (Lo que le prestas)
+                // Ejemplo: Si tiene $0 y límite $500.000, puede gastar $500.000.
+                const capacidadTotal = parseFloat(usuario.saldo_actual) + limite;
+    
+                // 4. Validamos si le alcanza
+                if (capacidadTotal < montoBruto) {
+                    const disponibleFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(capacidadTotal);
+                    throw new Error(`Saldo insuficiente. Tu cupo disponible (saldo + sobregiro) es de ${disponibleFmt}`);
+                }
             }
 
             // 3. EJECUTAR EL CAMBIO DE SALDO (Afecta al cliente en su panel)
@@ -407,20 +421,31 @@ app.post('/api/admin/config-horario', async (req, res) => {
 });
 
 app.post('/api/admin/usuarios', async (req, res) => {
-    const { nombre, cedula, password, saldoInicial, rol, permisos } = req.body;
+    // 1. Recibimos 'sobregiro' junto con los otros datos
+    const { nombre, cedula, password, saldoInicial, rol, permisos, sobregiro } = req.body;
     
     try {
-        // Encriptamos la contraseña (10 es el nivel de seguridad "salt")
         const passwordHash = await bcrypt.hash(password, 10);
-        
         const permisoFinal = permisos || 'AMBOS';
         
+        // 2. La consulta INSERT debe tener 7 valores (incluyendo limite_sobregiro)
         await pool.query(
-            'INSERT INTO usuarios (nombre_completo, cedula, password, saldo_actual, rol, permisos_casino) VALUES ($1, $2, $3, $4, $5, $6)', 
-            [nombre, cedula, passwordHash, saldoInicial || 0, rol || 'cliente', permisoFinal] // <--- Enviamos passwordHash
+            'INSERT INTO usuarios (nombre_completo, cedula, password, saldo_actual, rol, permisos_casino, limite_sobregiro) VALUES ($1, $2, $3, $4, $5, $6, $7)', 
+            [
+                nombre, 
+                cedula, 
+                passwordHash, 
+                saldoInicial || 0, 
+                rol || 'cliente', 
+                permisoFinal, 
+                sobregiro || 0 // 3. Aquí enviamos el valor (o 0 si no existe)
+            ] 
         );
         res.json({ success: true });
-    } catch(err) { res.status(500).json({ error: err.message }); }
+    } catch(err) { 
+        console.error("Error creando usuario:", err.message); // Ver error en consola negra
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.delete('/api/admin/usuarios/:id', async (req, res) => {
@@ -671,16 +696,16 @@ app.delete('/api/admin/transacciones/:id', async (req, res) => {
 // [NUEVO] EDITAR USUARIO (Sirve para activar/desactivar y cambiar datos)
 app.put('/api/admin/usuarios/:id', async (req, res) => {
     const { id } = req.params;
-    const { nombre, cedula, password, rol, permisos, activo } = req.body;
+    const { nombre, cedula, password, rol, permisos, activo, sobregiro } = req.body;
     
     try {
-        let query = `UPDATE usuarios SET nombre_completo = $1, cedula = $2, rol = $3, permisos_casino = $4, activo = $5`;
-        const params = [nombre, cedula, rol, permisos || 'AMBOS', activo];
+        let query = `UPDATE usuarios SET nombre_completo = $1, cedula = $2, rol = $3, permisos_casino = $4, activo = $5, limite_sobregiro = $6`;
+        const params = [nombre, cedula, rol, permisos || 'AMBOS', activo, sobregiro];
         
         // Si viene password, lo encriptamos y lo agregamos a la query
         if (password && password.trim() !== '') {
             const passwordHash = await bcrypt.hash(password, 10);
-            query += `, password = $6`;
+            query += `, password = $7`;
             params.push(passwordHash);
         }
         

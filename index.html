@@ -6,7 +6,24 @@
     <title>Gestión de Saldo - Cliente</title>
     <script>
         const usuarioSesion = localStorage.getItem('usuario_banco');
-        if (!usuarioSesion) window.location.href = 'login.html';
+        
+        if (!usuarioSesion) {
+            // 1. Si no hay sesión, mandar al login
+            window.location.href = 'login.html';
+        } else {
+            // 2. Si hay sesión, verificar quién es
+            try {
+                const usuarioObj = JSON.parse(usuarioSesion);
+                // Si es ADMIN, lo sacamos de aquí y lo mandamos a su panel
+                if (usuarioObj.rol === 'admin') {
+                    window.location.href = 'admin.html';
+                }
+            } catch (e) {
+                // Si los datos están corruptos, borrar y mandar al login
+                localStorage.removeItem('usuario_banco');
+                window.location.href = 'login.html';
+            }
+        }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
