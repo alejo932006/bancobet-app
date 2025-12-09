@@ -1,4 +1,4 @@
-const API_URL = 'https://vehicles-clothes-oliver-merchant.trycloudflare.com/api/admin';
+const API_URL = 'https://seating-unions-mandate-facing.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 

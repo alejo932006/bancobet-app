@@ -3,7 +3,7 @@ const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
 
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://vehicles-clothes-oliver-merchant.trycloudflare.com/api',
+    apiURL: 'https://seating-unions-mandate-facing.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
