@@ -551,8 +551,8 @@ async function procesarTransaccion(e) {
                     pin = document.getElementById('pin_retiro').value;
                 }
 
-                mensajeWhatsApp = `Para retiro:
--------------------------
+                mensajeWhatsApp = `
+
 Nombre del titular: ${titular}
 Operación: Retiro
 Cedula Registrada en casino: ${cedulaCasino}
@@ -571,10 +571,9 @@ ID referencia: ${idTx}`;
                     cuenta = document.getElementById('cedula_recarga').value;
                 }
 
-                mensajeWhatsApp = `para recarga:
------------------------
-Cedula para recargar: ${cuenta}
-valor: ${monto}
+                mensajeWhatsApp = `
+Cedula Cuenta: ${cuenta}
+Valor: ${monto}
 ----------------------
 id referencia: ${idTx}`;
             }
