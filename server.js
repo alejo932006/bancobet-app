@@ -1,15 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // *** CONFIGURA AQUÍ TU CONTRASEÑA MAESTRA ***
-const MASTER_KEY = 'Bancobet25'; 
+const MASTER_KEY = process.env.MASTER_KEY; 
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -29,32 +31,42 @@ app.use(express.static('.'));
 app.use('/uploads', express.static('uploads'));
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'bancobet',
-  password: '0534', // <--- ¡TU CONTRASEÑA!
-  port: 5432,
-});
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+  });
 
 // --- API LOGIN ---
 app.post('/api/login', async (req, res) => {
     const { cedula, password } = req.body;
     try {
-      const result = await pool.query('SELECT * FROM usuarios WHERE cedula = $1 AND password = $2', [cedula, password]);
+      // 1. Buscamos SOLO por cédula
+      const result = await pool.query('SELECT * FROM usuarios WHERE cedula = $1', [cedula]);
       
       if (result.rows.length > 0) {
           const user = result.rows[0];
           
-          // [NUEVO] Validar si está activo
+          // Validar si está activo
           if (user.activo === false) {
-              return res.status(403).json({ success: false, message: 'Tu cuenta ha sido desactivada. Contacta al soporte.' });
+              return res.status(403).json({ success: false, message: 'Tu cuenta ha sido desactivada.' });
           }
-  
-          res.json({ success: true, usuario: user });
+
+          // 2. COMPARAMOS la contraseña segura con BCRYPT
+          // Si la contraseña en la BD no está encriptada (usuarios viejos), esto fallará. 
+          // (Abajo te digo cómo solucionar eso).
+          const match = await bcrypt.compare(password, user.password);
+
+          if (match) {
+              res.json({ success: true, usuario: user });
+          } else {
+              res.status(401).json({ success: false, message: 'Credenciales incorrectas' });
+          }
       } 
       else res.status(401).json({ success: false, message: 'Credenciales incorrectas' });
     } catch (err) { res.status(500).json({ error: err.message }); }
-  });
+});
 
 app.get('/api/usuario/:id', async (req, res) => {
     try {
@@ -346,17 +358,17 @@ app.post('/api/admin/config-horario', async (req, res) => {
 });
 
 app.post('/api/admin/usuarios', async (req, res) => {
-    // Recibimos el campo 'permisos'
     const { nombre, cedula, password, saldoInicial, rol, permisos } = req.body;
     
     try {
-        // [MODIFICADO] Agregamos permisos_casino al INSERT
-        // Si no envían permiso, por defecto ponemos 'AMBOS'
+        // Encriptamos la contraseña (10 es el nivel de seguridad "salt")
+        const passwordHash = await bcrypt.hash(password, 10);
+        
         const permisoFinal = permisos || 'AMBOS';
         
         await pool.query(
             'INSERT INTO usuarios (nombre_completo, cedula, password, saldo_actual, rol, permisos_casino) VALUES ($1, $2, $3, $4, $5, $6)', 
-            [nombre, cedula, password, saldoInicial || 0, rol || 'cliente', permisoFinal]
+            [nombre, cedula, passwordHash, saldoInicial || 0, rol || 'cliente', permisoFinal] // <--- Enviamos passwordHash
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json({ error: err.message }); }
@@ -611,17 +623,18 @@ app.put('/api/admin/usuarios/:id', async (req, res) => {
     const { nombre, cedula, password, rol, permisos, activo } = req.body;
     
     try {
-        // Construimos la query dinámicamente para no obligar a cambiar el password siempre
         let query = `UPDATE usuarios SET nombre_completo = $1, cedula = $2, rol = $3, permisos_casino = $4, activo = $5`;
         const params = [nombre, cedula, rol, permisos || 'AMBOS', activo];
         
+        // Si viene password, lo encriptamos y lo agregamos a la query
         if (password && password.trim() !== '') {
+            const passwordHash = await bcrypt.hash(password, 10);
             query += `, password = $6`;
-            params.push(password);
+            params.push(passwordHash);
         }
         
         query += ` WHERE id = $${params.length + 1}`;
-        params.push(id); // El ID va al final de los parámetros
+        params.push(id);
 
         await pool.query(query, params);
         res.json({ success: true });

@@ -481,7 +481,6 @@ function actualizarCamposCasino() {
     }
 }
 
-// 2. ENVIAR DATOS (Actualizada para guardar el ID de Kairo)
 async function procesarTransaccion(e) {
     e.preventDefault();
     
@@ -492,30 +491,20 @@ async function procesarTransaccion(e) {
     formData.append('monto', document.getElementById('monto').value);
     formData.append('id_transaccion', document.getElementById('id_transaccion').value);
 
-    // Guardar el Casino seleccionado (Lo enviamos en cc_casino si es Kairo, o usamos lógica abajo)
+    // Guardar el Casino seleccionado
     const casino = document.getElementById('selector_casino').value;
 
     // --- LÓGICA ESPECIAL PARA GUARDAR DATOS SEGÚN EL CASINO ---
-    
-    // Si es KAIROPLAY, guardamos el ID que escribió el cliente en el campo 'pin_retiro' de la BD
-    // y el nombre del casino en 'cc_casino' para que sepas de dónde viene.
     if ( (UI.selectOperacion.value === 'RETIRO' || UI.selectOperacion.value === 'RECARGA') && casino === 'KAIROPLAY' ) {
-        
-        formData.append('cc_casino', 'KAIROPLAY'); // Para saber que es de Kairo
-        
-        // Buscamos el valor en el input de retiro o de recarga según corresponda
+        formData.append('cc_casino', 'KAIROPLAY'); 
         const idRetiro = document.getElementById('id_kairo_retiro').value;
         const idRecarga = document.getElementById('id_kairo_recarga').value;
         
-        // Guardamos ese ID en el campo PIN (Reutilizamos la columna)
         if(UI.selectOperacion.value === 'RETIRO') formData.append('pin_retiro', idRetiro);
         if(UI.selectOperacion.value === 'RECARGA') formData.append('pin_retiro', idRecarga); 
-    
     } else {
         // LÓGICA NORMAL (BETPLAY u Otros)
-        // Agregamos los campos si tienen valor
         const agregar = (id, nombre) => { const val = document.getElementById(id)?.value; if(val) formData.append(nombre, val); };
-        
         agregar('cc_casino', 'cc_casino');
         agregar('nombre_cedula', 'nombre_cedula');
         agregar('pin_retiro', 'pin_retiro');
@@ -533,86 +522,107 @@ async function procesarTransaccion(e) {
 
     // Enviar al servidor
     const btn = UI.form.querySelector('button'); btn.disabled=true; btn.innerText="Procesando...";
+    
     try {
         const res = await fetch(`${CONFIG.apiURL}/transaccion`, { method: 'POST', body: formData });
         const data = await res.json();
+        
         if(data.success) { 
-            // 1. Construir el Mensaje
             const tipo = UI.selectOperacion.value;
             const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(document.getElementById('monto').value);
             const idTx = document.getElementById('id_transaccion').value;
             const nombreUsuario = CONFIG.usuario.nombre_completo;
             
-            let detalles = "";
+            let mensajeWhatsApp = "";
 
+            // --- 1. CASO RETIRO (FORMATO NUEVO VERTICAL) ---
             if(tipo === 'RETIRO') {
-                const casino = document.getElementById('selector_casino').value;
+                let titular = "";
+                let cedulaCasino = "";
+                let pin = "";
+
                 if(casino === 'KAIROPLAY') {
-                     const idKairo = document.getElementById('id_kairo_retiro').value;
-                     detalles = `Plataforma: *KAIROPLAY*\nID Transferencia: *${idKairo}*`;
+                    titular = CONFIG.usuario.nombre_completo; 
+                    cedulaCasino = "N/A (Kairo)";
+                    pin = document.getElementById('id_kairo_retiro').value; 
                 } else {
-                     const pin = document.getElementById('pin_retiro').value;
-                     const ccCasino = document.getElementById('cc_casino').value;
-                     const nombreTitular = document.getElementById('nombre_cedula').value;
-                     detalles = `Plataforma: *BETPLAY*\nC.C Casino: *${ccCasino}*\nTitular: *${nombreTitular}*\nPIN: *${pin}*`;
+                    titular = document.getElementById('nombre_cedula').value;
+                    cedulaCasino = document.getElementById('cc_casino').value;
+                    pin = document.getElementById('pin_retiro').value;
                 }
-            }
-            else if(tipo === 'RECARGA') {
-                const casino = document.getElementById('selector_casino').value;
-                if(casino === 'KAIROPLAY') {
-                     const idKairo = document.getElementById('id_kairo_recarga').value;
-                     detalles = `Plataforma: *KAIROPLAY*\nID Usuario: *${idKairo}*`;
-                } else {
-                     const cedula = document.getElementById('cedula_recarga').value;
-                     detalles = `Plataforma: *BETPLAY*\nCédula: *${cedula}*`;
-                }
-            }
-            else if(tipo === 'TRASLADO') {
-                const selectDestino = document.getElementById('cliente_destino');
-                const nombreDestino = selectDestino.options[selectDestino.selectedIndex].text;
-                detalles = `Destinatario: *${nombreDestino}*\nTipo: *Transferencia Interna*`;
-            }
-            else if(tipo === 'CONSIGNACION') {
-                const banco = document.getElementById('llave_bre_b').value;
-                const titular = document.getElementById('titular_cuenta').value;
-                detalles = `Banco / Llave: *${banco}*\nTitular: *${titular}*`;
-            }
-            // [AQUÍ ESTÁ LA CORRECCIÓN]
-            else if(tipo === 'ABONO_CAJA') {
-                if (data.comprobante_url) {
-                    // Nos aseguramos de codificar correctamente el espacio y caracteres especiales de la URL si los hubiera
-                    detalles = `Tipo: *Depósito Bancario*\nVer Comprobante: ${data.comprobante_url}`;
-                } else {
-                    detalles = `Tipo: *Depósito Bancario*\n(Sin comprobante adjunto)`;
-                }
+
+                mensajeWhatsApp = `Para retiro:
+-------------------------
+Nombre del titular: ${titular}
+Operación: Retiro
+Cedula Registrada en casino: ${cedulaCasino}
+Pin de retiro: ${pin}
+Valor del retiro: ${monto}
+--------------------
+ID referencia: ${idTx}`;
             }
 
-            // Construimos el texto base
-            const textoBase = `Hola, acabo de realizar una operación:\n\n📌 *${tipo.replace(/_/g, ' ')}*\n👤 Usuario: ${nombreUsuario}\n💰 Monto: ${monto}\n🆔 Ref: ${idTx}\n--------------------------------\n${detalles}\n--------------------------------\nQuedo atento. Muchas gracias.`;
+            // --- 2. CASO RECARGA (FORMATO NUEVO VERTICAL) ---
+            else if(tipo === 'RECARGA') {
+                let cuenta = "";
+                if(casino === 'KAIROPLAY') {
+                    cuenta = document.getElementById('id_kairo_recarga').value;
+                } else {
+                    cuenta = document.getElementById('cedula_recarga').value;
+                }
+
+                mensajeWhatsApp = `para recarga:
+-----------------------
+Cedula para recargar: ${cuenta}
+valor: ${monto}
+----------------------
+id referencia: ${idTx}`;
+            }
+
+            // --- 3. OTROS CASOS (FORMATO ORIGINAL CONSERVADO) ---
+            else {
+                let detalles = "";
+                
+                if(tipo === 'TRASLADO') {
+                    const selectDestino = document.getElementById('cliente_destino');
+                    const nombreDestino = selectDestino.options[selectDestino.selectedIndex].text;
+                    detalles = `Destinatario: *${nombreDestino}*\nTipo: *Transferencia Interna*`;
+                }
+                else if(tipo === 'CONSIGNACION') {
+                    const banco = document.getElementById('llave_bre_b').value;
+                    const titular = document.getElementById('titular_cuenta').value;
+                    detalles = `Banco / Llave: *${banco}*\nTitular: *${titular}*`;
+                }
+                else if(tipo === 'ABONO_CAJA') {
+                    if (data.comprobante_url) {
+                        detalles = `Tipo: *Depósito Bancario*\nVer Comprobante: ${data.comprobante_url}`;
+                    } else {
+                        detalles = `Tipo: *Depósito Bancario*\n(Sin comprobante adjunto)`;
+                    }
+                }
+
+                // Construimos el mensaje estilo antiguo para estos casos
+                mensajeWhatsApp = `Hola, acabo de realizar una operación:\n\n📌 *${tipo.replace(/_/g, ' ')}*\n👤 Usuario: ${nombreUsuario}\n💰 Monto: ${monto}\n🆔 Ref: ${idTx}\n--------------------------------\n${detalles}\n--------------------------------\nQuedo atento. Muchas gracias.`;
+            }
 
             // Codificamos para URL
-            const textoCodificado = encodeURIComponent(textoBase);
+            const textoCodificado = encodeURIComponent(mensajeWhatsApp);
 
             if (data.whatsapp_destino) {
                 Swal.fire({
                     title: '¡Operación Exitosa!',
-                    text: '¿Deseas enviar el comprobante por WhatsApp ahora?',
+                    text: 'Enviar comprobante por WhatsApp:',
                     icon: 'success',
                     showCancelButton: true,
-                    confirmButtonText: '<i class="fab fa-whatsapp"></i> Enviar WhatsApp',
+                    confirmButtonText: '<i class="fab fa-whatsapp"></i> Enviar',
                     confirmButtonColor: '#25D366',
                     cancelButtonText: 'Cerrar'
                 }).then((result) => {
-                    // Limpieza UI
                     UI.form.reset(); resetearVista(); sincronizarDatosUsuario(); cambiarVista('historial');
                     
                     if (result.isConfirmed) {
                         const numeroLimpio = data.whatsapp_destino.replace(/\D/g, '');
-                        const urlFinal = `https://wa.me/${numeroLimpio}?text=${textoCodificado}`;
-                        
-                        // [FIX] Usar una referencia segura a la ventana
-                        console.log("Abriendo WhatsApp:", urlFinal); // Para depuración
-                        window.open(urlFinal, '_blank');
+                        window.open(`https://wa.me/${numeroLimpio}?text=${textoCodificado}`, '_blank');
                     }
                 });
             } else {
@@ -621,72 +631,28 @@ async function procesarTransaccion(e) {
             }
         }
         else {
-            // [MODIFICADO] Manejo de errores con estilo
-            
-            // 1. Detectamos si es un error de HORARIO (buscando palabras clave en el mensaje del servidor)
+            // Manejo de errores
             if (data.error && (data.error.includes('Horario') || data.error.includes('cerrado'))) {
-                
                 Swal.fire({
-                    title: '',
-                    html: `
-                        <div class="text-center pt-2">
-                            <div class="mx-auto w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mb-4 animate-pulse">
-                                <i class="fas fa-moon text-4xl text-indigo-900"></i>
-                            </div>
-                            
-                            <h3 class="text-2xl font-bold text-gray-800 mb-2">Estamos Descansando</h3>
-                            
-                            <p class="text-gray-500 text-sm px-4 mb-6">
-                                ${data.error} 
-                                <br><span class="text-xs mt-2 block opacity-75">(Tu dinero está seguro, inténtalo mañana)</span>
-                            </p>
-
-                            <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex justify-between items-center mx-4">
-                                <div class="flex items-center gap-2">
-                                    <i class="fas fa-clock text-indigo-600"></i>
-                                    <span class="text-xs font-bold text-indigo-900 uppercase">Horario Atención</span>
-                                </div>
-                                <span class="text-xs font-bold bg-white text-indigo-600 px-2 py-1 rounded border border-indigo-100 shadow-sm">
-                                    Activo
-                                </span>
-                            </div>
-                        </div>
-                    `,
-                    showConfirmButton: true,
-                    confirmButtonText: 'Entendido, volveré luego',
-                    confirmButtonColor: '#312e81', // Un índigo oscuro elegante
-                    customClass: {
-                        popup: 'rounded-2xl shadow-2xl',
-                        confirmButton: 'w-full rounded-lg py-3 font-bold text-sm mx-4 mb-2' // Botón ancho estilo móvil
-                    },
-                    backdrop: `
-                        rgba(15, 23, 42, 0.8)
-                    `
+                    title: 'Estamos Descansando',
+                    text: data.error,
+                    icon: 'info',
+                    confirmButtonText: 'Entendido'
                 });
-
             } else {
-                // 2. Si es CUALQUIER OTRO error (Saldo insuficiente, etc.), mostramos alerta roja estándar
                 Swal.fire({
                     icon: 'error',
                     title: 'Hubo un problema',
                     text: data.error,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Corregir'
+                    confirmButtonColor: '#d33'
                 });
             }
         }
     } catch(e) { 
-        // Error de red (servidor apagado, sin internet)
-        Swal.fire({
-            icon: 'warning',
-            title: 'Sin conexión',
-            text: 'No pudimos conectar con el servidor. Revisa tu internet.',
-            confirmButtonColor: '#f59e0b'
-        });
-        console.error(e); 
+        console.error(e);
+        Swal.fire({ icon: 'warning', title: 'Sin conexión', text: 'No pudimos conectar con el servidor.' });
     }
     
-    // Restaurar botón
     btn.disabled = false; 
     btn.innerText = "Confirmar Operación";
 }
