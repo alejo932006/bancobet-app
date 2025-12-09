@@ -633,7 +633,7 @@ id referencia: ${idTx}`;
                 }
 
                 // Construimos el mensaje estilo antiguo para estos casos
-                mensajeWhatsApp = `Hola, acabo de realizar una operación:\n\n📌 *${tipo.replace(/_/g, ' ')}*\n👤 Usuario: ${nombreUsuario}\n💰 Monto: ${monto}\n🆔 Ref: ${idTx}\n--------------------------------\n${detalles}\n--------------------------------\nQuedo atento. Muchas gracias.`;
+                mensajeWhatsApp = `Hola, acabo de realizar una operación:\n\n📌 *${tipo.replace(/_/g, ' ')}*\n👤 Usuario: ${nombreCliente}\n💰 Monto: ${monto}\n🆔 Ref: ${idTx}\n--------------------------------\n${detalles}\n--------------------------------\nQuedo atento. Muchas gracias.`;
             }
 
             // Codificamos para URL
