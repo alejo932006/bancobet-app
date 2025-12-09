@@ -88,17 +88,47 @@ app.get('/api/lista-usuarios', async (req, res) => {
 // [MODIFICADO] Historial del cliente con paginación
 app.get('/api/historial/:usuarioId', async (req, res) => {
     try {
-        const { limit, offset } = req.query;
+        const { limit, offset, busqueda, fechaInicio, fechaFin } = req.query;
         
-        // Configuramos 10 por defecto, como pediste
-        const limite = parseInt(limit) || 10; 
+        const limite = parseInt(limit) || 20;
         const salto = parseInt(offset) || 0;
+        const usuarioId = req.params.usuarioId;
 
-        const result = await pool.query(
-            'SELECT * FROM transacciones WHERE usuario_id = $1 ORDER BY fecha_transaccion DESC LIMIT $2 OFFSET $3', 
-            [req.params.usuarioId, limite, salto]
-        );
+        let query = `
+            SELECT * FROM transacciones 
+            WHERE usuario_id = $1 
+        `;
+        
+        const params = [usuarioId];
+        let paramCount = 2;
+
+        // 1. Filtro de Búsqueda (ID, Referencia, Cédulas, Tipo)
+        if (busqueda) {
+            query += ` AND (
+                referencia_externa ILIKE $${paramCount} OR 
+                cc_casino ILIKE $${paramCount} OR 
+                pin_retiro ILIKE $${paramCount} OR 
+                cedula_destino ILIKE $${paramCount} OR 
+                tipo_operacion ILIKE $${paramCount}
+            )`;
+            params.push(`%${busqueda}%`);
+            paramCount++;
+        }
+
+        // 2. Filtro de Fechas
+        if (fechaInicio && fechaFin) {
+            query += ` AND fecha_transaccion::date BETWEEN $${paramCount} AND $${paramCount + 1}`;
+            params.push(fechaInicio, fechaFin);
+            paramCount += 2;
+        }
+
+        // Orden y Paginación
+        query += ` ORDER BY fecha_transaccion DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        params.push(limite, salto);
+
+        const result = await pool.query(query, params);
         res.json({ success: true, datos: result.rows });
+
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

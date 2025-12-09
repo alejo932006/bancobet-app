@@ -111,44 +111,46 @@ async function cargarHistorial(reset = true) {
     const msg = document.getElementById('msg-fin-user');
     const lista = document.getElementById('lista-historial');
 
+    // Obtener valores de los filtros
+    const inicio = document.getElementById('filtro_inicio').value;
+    const fin = document.getElementById('filtro_fin').value;
+    const busqueda = document.getElementById('filtro_busqueda').value;
+
     if (reset) {
-        // Si es carga inicial o refresco
         offsetHistorial = 0;
-        CONFIG.historialCache = []; // Limpiamos caché
+        CONFIG.historialCache = []; 
         lista.innerHTML = '<div class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
         btn.classList.add('hidden');
         msg.classList.add('hidden');
     } else {
-        // Si es "Cargar más"
         btn.innerText = "Cargando...";
         btn.disabled = true;
     }
 
     try {
-        // Llamada con limit y offset
-        const res = await fetch(`${CONFIG.apiURL}/historial/${CONFIG.usuario.id}?limit=${LIMITE_USER}&offset=${offsetHistorial}`);
+        // Construcción de URL con todos los parámetros
+        let url = `${CONFIG.apiURL}/historial/${CONFIG.usuario.id}?limit=${LIMITE_USER}&offset=${offsetHistorial}`;
+        
+        if (inicio && fin) url += `&fechaInicio=${inicio}&fechaFin=${fin}`;
+        if (busqueda) url += `&busqueda=${encodeURIComponent(busqueda)}`;
+
+        const res = await fetch(url);
         const data = await res.json();
         
         if (data.success) {
-            if (reset) lista.innerHTML = ''; // Quitamos el spinner solo si es reset
+            if (reset) lista.innerHTML = ''; 
 
-            // Agregamos los nuevos datos al caché global
             CONFIG.historialCache = CONFIG.historialCache.concat(data.datos);
-            
-            // Renderizamos (false indica que NO limpie el HTML, sino que agregue)
             renderizarLista(data.datos, reset);
 
-            // Actualizamos offset
             offsetHistorial += LIMITE_USER;
 
-            // Control del botón
             if (data.datos.length < LIMITE_USER) {
-                // Si llegaron menos de 10, ya no hay más
                 btn.classList.add('hidden');
-                // Mostramos mensaje de fin solo si ya había datos cargados
-                if (!reset || CONFIG.historialCache.length > 0) msg.classList.remove('hidden');
+                // Si no es reset (es paginación) o si es reset pero hay datos, mostramos fin
+                // Si es reset y no hay datos, el renderizarLista ya mostró "No hay movimientos"
+                if (!reset && CONFIG.historialCache.length > 0) msg.classList.remove('hidden');
             } else {
-                // Si llegaron 10, probablemente hay más
                 btn.classList.remove('hidden');
                 msg.classList.add('hidden');
                 btn.disabled = false;
@@ -173,6 +175,7 @@ function aplicarFiltro() {
         return cumple;
     });
     renderizarLista(filtrados);
+    cargarHistorial(true);
 }
 
 // [MODIFICADO] Renderizar lista con detalles de Casa de Apuestas
