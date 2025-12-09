@@ -3,7 +3,7 @@ const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
 
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://seating-unions-mandate-facing.trycloudflare.com/api',
+    apiURL: 'https://grams-fibre-veterinary-consistent.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
@@ -68,17 +68,44 @@ async function cargarListaDestinatarios() {
     } catch (e) { console.error("Error cargando usuarios", e); }
 }
 
+// En app.js
+
+// app.js
+
 async function sincronizarDatosUsuario() {
     try {
         const res = await fetch(`${CONFIG.apiURL}/usuario/${CONFIG.usuario.id}`);
+        
+        // 1. Caso Usuario Borrado (404)
+        if (res.status === 404) {
+            localStorage.removeItem('usuario_banco');
+            window.location.href = 'login.html';
+            return;
+        }
+
         const data = await res.json();
+
+        // 2. [NUEVO] Caso Usuario Desactivado
+        if (data.success && data.usuario.activo === false) {
+            // Opcional: Mostrar alerta antes de sacar
+            alert("Tu cuenta ha sido desactivada por el administrador.");
+            
+            localStorage.removeItem('usuario_banco');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // 3. Caso Normal (Actualizar saldo)
         if (data.success && data.usuario.saldo_actual !== CONFIG.usuario.saldo_actual) {
             CONFIG.usuario = data.usuario;
             localStorage.setItem('usuario_banco', JSON.stringify(data.usuario));
             actualizarUIUsuario(data.usuario);
+            // Si estamos en el historial, recargamos para ver nuevos movimientos
             if (!UI.vistaHistorial.classList.contains('hidden')) cargarHistorial();
         }
-    } catch (e) {}
+    } catch (e) {
+        // Ignorar errores de red temporales
+    }
 }
 
 function actualizarUIUsuario(u) {
@@ -534,29 +561,29 @@ async function procesarTransaccion(e) {
             const tipo = UI.selectOperacion.value;
             const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(document.getElementById('monto').value);
             const idTx = document.getElementById('id_transaccion').value;
-            const nombreUsuario = CONFIG.usuario.nombre_completo;
+            
+            // CORRECCIÓN AQUÍ: Usamos 'nombreCliente' para que coincida con el mensaje de abajo
+            const nombreCliente = CONFIG.usuario.nombre_completo; 
             
             let mensajeWhatsApp = "";
 
             // --- 1. CASO RETIRO (FORMATO NUEVO VERTICAL) ---
             if(tipo === 'RETIRO') {
-                let titular = "";
+                // Nota: La variable 'titular' ya no se usa en el mensaje, 
+                // pero la dejamos por si la lógica interna la necesita para validaciones.
                 let cedulaCasino = "";
                 let pin = "";
 
                 if(casino === 'KAIROPLAY') {
-                    titular = CONFIG.usuario.nombre_completo; 
                     cedulaCasino = "N/A (Kairo)";
                     pin = document.getElementById('id_kairo_retiro').value; 
                 } else {
-                    titular = document.getElementById('nombre_cedula').value;
                     cedulaCasino = document.getElementById('cc_casino').value;
                     pin = document.getElementById('pin_retiro').value;
                 }
 
                 mensajeWhatsApp = `
-
-Nombre del titular: ${titular}
+Usuario: ${nombreCliente}
 Operación: Retiro
 Cedula Registrada en casino: ${cedulaCasino}
 Pin de retiro: ${pin}
@@ -575,6 +602,8 @@ ID referencia: ${idTx}`;
                 }
 
                 mensajeWhatsApp = `
+Operacion: Recarga                
+Usuario: ${nombreCliente}
 Cedula Cuenta: ${cuenta}
 Valor: ${monto}
 ----------------------

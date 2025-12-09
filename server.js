@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
+const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -21,10 +22,26 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, cb) { cb(null, Date.now() + path.extname(file.originalname)); }
 });
-const upload = multer({ storage: storage });
+
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // Límite de 5MB
+    fileFilter: (req, file, cb) => {
+        // Expresión regular para aceptar solo imágenes
+        const filetypes = /jpeg|jpg|png|gif|webp/;
+        // Verificamos la extensión y el tipo MIME
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Error: Solo se permiten imágenes válidas (jpeg, jpg, png, gif, webp)'));
+    }
+});
 
 app.use(cors({
-    origin: '*' 
+    origin: allowedOrigin
 }));
 app.use(express.json());
 app.use(express.static('.')); 
@@ -70,7 +87,9 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/usuario/:id', async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, nombre_completo, cedula, saldo_actual, rol FROM usuarios WHERE id = $1', [req.params.id]);
+        // [MODIFICADO] Agregamos 'activo' a la lista de campos
+        const result = await pool.query('SELECT id, nombre_completo, cedula, saldo_actual, rol, activo FROM usuarios WHERE id = $1', [req.params.id]);
+        
         if (result.rows.length > 0) res.json({ success: true, usuario: result.rows[0] });
         else res.status(404).json({ success: false });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -406,7 +425,9 @@ app.post('/api/admin/usuarios', async (req, res) => {
 
 app.delete('/api/admin/usuarios/:id', async (req, res) => {
     const { masterKey } = req.body;
-    if (masterKey !== 'Bancobet25') return res.status(403).json({ success: false, message: 'Clave Maestra Incorrecta' });
+    if (masterKey !== process.env.MASTER_KEY) {
+        return res.status(403).json({ success: false, message: 'Clave Maestra Incorrecta' });
+    }
 
     try {
         const id = req.params.id;
@@ -839,7 +860,7 @@ app.post('/api/admin/reset-db', async (req, res) => {
     const { masterKey } = req.body;
     
     // 1. Verificación de Seguridad
-    if (masterKey !== 'Bancobet25') { // O usa la variable MASTER_KEY si la tienes definida arriba
+    if (masterKey !== process.env.MASTER_KEY) { 
         return res.status(403).json({ error: "Clave Maestra Incorrecta. Acceso denegado." });
     }
 
