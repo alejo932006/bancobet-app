@@ -1,4 +1,22 @@
-const API_URL = 'https://grams-fibre-veterinary-consistent.trycloudflare.com/api/admin';
+(function() {
+    // ⚠️ IMPORTANTE: Pon aquí la misma clave que tienes en tu archivo .env
+    // En un sistema real esto vendría del login, pero para tu uso personal, esto funciona.
+    const MASTER_KEY = 'Xk9mP2$vL5@nR8*qW4!zY7&bJ1^hC3'; 
+
+    const originalFetch = window.fetch;
+    window.fetch = function(url, config = {}) {
+        // Solo inyectamos la clave si vamos a la zona de admin
+        if (url.includes('/api/admin')) {
+            config.headers = {
+                ...config.headers, // Mantener headers existentes (como Content-Type)
+                'x-master-key': MASTER_KEY
+            };
+        }
+        return originalFetch(url, config);
+    };
+})();
+
+const API_URL = 'https://dsc-avatar-outdoors-llp.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 

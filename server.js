@@ -55,6 +55,19 @@ const pool = new Pool({
     port: process.env.DB_PORT,
   });
 
+  app.use('/api/admin', (req, res, next) => {
+    const claveRecibida = req.headers['x-master-key'];
+    const claveReal = process.env.MASTER_KEY;
+
+    // Si no envió clave o es incorrecta -> Bloqueo total (403 Forbidden)
+    if (!claveRecibida || claveRecibida !== claveReal) {
+        console.log(`⛔ Intento de acceso no autorizado a ${req.path} desde ${req.ip}`);
+        return res.status(403).json({ success: false, error: 'Acceso Denegado: Falta autorización.' });
+    }
+    
+    next(); // Si la clave es correcta, deja pasar.
+});
+
 // --- API LOGIN ---
 app.post('/api/login', async (req, res) => {
     const { cedula, password } = req.body;
