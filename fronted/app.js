@@ -4,7 +4,7 @@ const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
 
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://council-sunrise-tobacco-laser.trycloudflare.com/api',
+    apiURL: 'https://api.prismanet.org/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };

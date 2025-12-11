@@ -16,7 +16,7 @@
     };
 })();
 
-const API_URL = 'https://council-sunrise-tobacco-laser.trycloudflare.com/api/admin';
+const API_URL = 'https://api.prismanet.org/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
