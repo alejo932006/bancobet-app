@@ -1,9 +1,10 @@
 let offsetHistorial = 0;
+let notifInterval;
 const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
 
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
-    apiURL: 'https://dsc-avatar-outdoors-llp.trycloudflare.com/api',
+    apiURL: 'https://council-sunrise-tobacco-laser.trycloudflare.com/api',
     historialCache: [],
     usuariosLista: [] // [NUEVO] Cache para guardar nombres de usuarios
 };
@@ -43,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         actualizarUIUsuario(CONFIG.usuario);
         setInterval(sincronizarDatosUsuario, 5000);
         cargarListaDestinatarios(); // [NUEVO] Cargar usuarios al inicio
+        notifInterval = setInterval(cargarNotificaciones, 10000);
     }
 });
 
@@ -730,6 +732,93 @@ function filtrarOpcionesCasino() {
     
     // Forzar actualización de campos visuales (para que se muestren los inputs correctos)
     actualizarCamposCasino();
+}
+
+async function cargarNotificaciones() {
+    try {
+        const res = await fetch(`${CONFIG.apiURL}/notificaciones/${CONFIG.usuario.id}`);
+        const data = await res.json();
+        
+        const lista = document.getElementById('lista-notificaciones');
+        const badge = document.getElementById('badge-notif');
+        
+        // Verificar si hay no leídas
+        const hayNoLeidas = data.some(n => !n.leido);
+        if(hayNoLeidas) badge.classList.remove('hidden');
+        else badge.classList.add('hidden');
+
+        // Renderizar (solo si el panel está abierto para no gastar recursos renderizando oculto, 
+        // o renderizar siempre para tenerlo listo. Haremos render simple)
+        if (!document.getElementById('panel-notificaciones').classList.contains('translate-x-full')) {
+            renderizarNotificaciones(data);
+        }
+        
+        // Guardamos en variable global temporal para usar al abrir
+        window.misNotificaciones = data;
+
+    } catch (e) { console.error("Error notificaciones", e); }
+}
+
+function renderizarNotificaciones(datos) {
+    const lista = document.getElementById('lista-notificaciones');
+    lista.innerHTML = '';
+
+    if (datos.length === 0) {
+        lista.innerHTML = '<div class="text-center text-gray-400 text-xs mt-10">Sin notificaciones recientes.</div>';
+        return;
+    }
+
+    datos.forEach(n => {
+        const fecha = moment(n.fecha).fromNow();
+        const estiloNoLeido = !n.leido ? 'bg-white border-l-4 border-blue-500 shadow-sm' : 'bg-gray-100 opacity-75 border border-gray-200';
+        const icono = n.tipo === 'ALERTA' ? '<i class="fas fa-exclamation-circle text-red-500"></i>' : '<i class="fas fa-info-circle text-blue-500"></i>';
+
+        const html = `
+            <div class="p-3 rounded mb-2 text-sm ${estiloNoLeido} transition hover:bg-white" onclick="marcarLeida(${n.id}, this)">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-gray-700">${icono} Sistema</span>
+                    <span class="text-[10px] text-gray-400">${fecha}</span>
+                </div>
+                <p class="text-gray-600 text-xs leading-snug">${n.mensaje}</p>
+            </div>
+        `;
+        lista.innerHTML += html;
+    });
+}
+
+function toggleNotificaciones() {
+    const panel = document.getElementById('panel-notificaciones');
+    const overlay = document.getElementById('overlay-notif');
+    
+    if (panel.classList.contains('translate-x-full')) {
+        // Abrir
+        panel.classList.remove('translate-x-full');
+        overlay.classList.remove('hidden');
+        if(window.misNotificaciones) renderizarNotificaciones(window.misNotificaciones);
+    } else {
+        // Cerrar
+        panel.classList.add('translate-x-full');
+        overlay.classList.add('hidden');
+        // Al cerrar, recargamos para actualizar el badge (si marcamos como leídas)
+        cargarNotificaciones();
+    }
+}
+
+async function marcarLeida(id, elemento) {
+    if (elemento.classList.contains('bg-gray-100')) return; // Ya está leída
+
+    try {
+        await fetch(`${CONFIG.apiURL}/notificaciones/leer/${id}`, { method: 'PUT' });
+        // Visualmente marcar como leída
+        elemento.classList.remove('bg-white', 'border-l-4', 'border-blue-500', 'shadow-sm');
+        elemento.classList.add('bg-gray-100', 'opacity-75', 'border', 'border-gray-200');
+        
+        // Actualizar badge localmente
+        const badge = document.getElementById('badge-notif');
+        const aunSinLeer = document.querySelectorAll('#lista-notificaciones .bg-white').length; // Contar visuales
+        if(aunSinLeer === 0) badge.classList.add('hidden');
+
+    } catch(e) { console.error(e); }
 }
 
 

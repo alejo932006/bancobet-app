@@ -16,7 +16,7 @@
     };
 })();
 
-const API_URL = 'https://dsc-avatar-outdoors-llp.trycloudflare.com/api/admin';
+const API_URL = 'https://council-sunrise-tobacco-laser.trycloudflare.com/api/admin';
 let usuarioActualId = null;
 let transaccionesCache = []; 
 let usuariosCache = []; 
@@ -243,9 +243,11 @@ async function cargarMovimientosGlobales(reset = true) {
             if(tx.referencia_externa) detalle += `<br><span class="text-xs opacity-75">ID: ${tx.referencia_externa}</span>`;
 
             const btnReversar = esReversada 
-            ? `<button disabled class="text-gray-300 cursor-not-allowed"><i class="fas fa-ban"></i></button>`
+            ? `<button onclick="restaurarTransaccion(${tx.id})" class="text-green-500 hover:text-green-700 transition mx-2" title="Restaurar (Des-reversar)">
+                 <i class="fas fa-trash-restore"></i>
+               </button>`
             : `<button onclick="editarMonto(${tx.id}, ${tx.monto})" class="text-yellow-500 hover:text-yellow-700 transition mx-2" title="Editar Valor"><i class="fas fa-pen"></i></button>
-               <button onclick="eliminarTransaccion(${tx.id}, ${tx.monto})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
+               <button onclick="eliminarTransaccion(${tx.id})" class="text-red-400 hover:text-red-600 transition" title="Reversar"><i class="fas fa-undo"></i></button>`;
             
             const indicadorEdicion = tx.editado 
             ? `<span class="ml-1 text-orange-500" title="Monto ajustado manualmente"><i class="fas fa-pen-nib text-xs"></i></span>` 
@@ -1338,5 +1340,32 @@ async function eliminarPagoKairo(id) {
                 cargarHistorialPagosKairo();
             }
         } catch(e) { Swal.fire('Error', 'No se pudo eliminar', 'error'); }
+    }
+}
+
+async function restaurarTransaccion(id) {
+    const result = await Swal.fire({
+        title: '¿Restaurar Operación?',
+        text: "La transacción volverá a estar APROBADA y el saldo del usuario se afectará nuevamente.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981', // Verde
+        confirmButtonText: 'Sí, restaurar'
+    });
+
+    if (result.isConfirmed) {
+        try {
+            const res = await fetch(`${API_URL}/transacciones/${id}/restaurar`, { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.success) {
+                Swal.fire('Restaurado', 'La transacción está activa de nuevo.', 'success');
+                // Recargar según la vista donde estés
+                if(!document.getElementById('vista-movimientos').classList.contains('hidden')) cargarMovimientosGlobales();
+                else filtrarHistorialDetalle();
+            } else {
+                Swal.fire('Error', data.error, 'error');
+            }
+        } catch (e) { Swal.fire('Error', 'Fallo de red', 'error'); }
     }
 }
