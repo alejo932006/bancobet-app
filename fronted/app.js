@@ -526,6 +526,20 @@ async function procesarTransaccion(e) {
     // Guardar el Casino seleccionado
     const casino = document.getElementById('selector_casino').value;
 
+    if (UI.selectOperacion.value === 'RETIRO' && casino === 'BETPLAY') {
+        const pin = document.getElementById('pin_retiro').value;
+        
+        // La expresión regular /^\d{6}$/ verifica que sean números y exactamente 6
+        if (!pin || !/^\d{6}$/.test(pin)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'PIN Inválido',
+                text: 'El PIN de retiro para Betplay debe tener exactamente 6 dígitos.'
+            });
+            return; // Detiene la función, no se envía nada al servidor
+        }
+    }
+
     // --- LÓGICA ESPECIAL PARA GUARDAR DATOS SEGÚN EL CASINO ---
     if ( (UI.selectOperacion.value === 'RETIRO' || UI.selectOperacion.value === 'RECARGA') && casino === 'KAIROPLAY' ) {
         formData.append('cc_casino', 'KAIROPLAY'); 
