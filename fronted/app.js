@@ -1,6 +1,8 @@
 let offsetHistorial = 0;
 let notifInterval;
 const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
+let offsetNotif = 0;
+const LIMIT_NOTIF = 10;
 
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
@@ -44,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         actualizarUIUsuario(CONFIG.usuario);
         setInterval(sincronizarDatosUsuario, 5000);
         cargarListaDestinatarios(); // [NUEVO] Cargar usuarios al inicio
-        notifInterval = setInterval(cargarNotificaciones, 10000);
+        notifInterval = setInterval(verificarBadgeNotificaciones, 10000);
     }
 });
 
@@ -748,75 +750,6 @@ function filtrarOpcionesCasino() {
     actualizarCamposCasino();
 }
 
-async function cargarNotificaciones() {
-    try {
-        const res = await fetch(`${CONFIG.apiURL}/notificaciones/${CONFIG.usuario.id}`);
-        const data = await res.json();
-        
-        const lista = document.getElementById('lista-notificaciones');
-        const badge = document.getElementById('badge-notif');
-        
-        // Verificar si hay no leídas
-        const hayNoLeidas = data.some(n => !n.leido);
-        if(hayNoLeidas) badge.classList.remove('hidden');
-        else badge.classList.add('hidden');
-
-        // Renderizar (solo si el panel está abierto para no gastar recursos renderizando oculto, 
-        // o renderizar siempre para tenerlo listo. Haremos render simple)
-        if (!document.getElementById('panel-notificaciones').classList.contains('translate-x-full')) {
-            renderizarNotificaciones(data);
-        }
-        
-        // Guardamos en variable global temporal para usar al abrir
-        window.misNotificaciones = data;
-
-    } catch (e) { console.error("Error notificaciones", e); }
-}
-
-function renderizarNotificaciones(datos) {
-    const lista = document.getElementById('lista-notificaciones');
-    lista.innerHTML = '';
-
-    if (datos.length === 0) {
-        lista.innerHTML = '<div class="text-center text-gray-400 text-xs mt-10">Sin notificaciones recientes.</div>';
-        return;
-    }
-
-    datos.forEach(n => {
-        const fecha = moment(n.fecha).fromNow();
-        const estiloNoLeido = !n.leido ? 'bg-white border-l-4 border-blue-500 shadow-sm' : 'bg-gray-100 opacity-75 border border-gray-200';
-        const icono = n.tipo === 'ALERTA' ? '<i class="fas fa-exclamation-circle text-red-500"></i>' : '<i class="fas fa-info-circle text-blue-500"></i>';
-
-        const html = `
-            <div class="p-3 rounded mb-2 text-sm ${estiloNoLeido} transition hover:bg-white" onclick="marcarLeida(${n.id}, this)">
-                <div class="flex justify-between items-start mb-1">
-                    <span class="font-bold text-gray-700">${icono} Sistema</span>
-                    <span class="text-[10px] text-gray-400">${fecha}</span>
-                </div>
-                <p class="text-gray-600 text-xs leading-snug">${n.mensaje}</p>
-            </div>
-        `;
-        lista.innerHTML += html;
-    });
-}
-
-function toggleNotificaciones() {
-    const panel = document.getElementById('panel-notificaciones');
-    const overlay = document.getElementById('overlay-notif');
-    
-    if (panel.classList.contains('translate-x-full')) {
-        // Abrir
-        panel.classList.remove('translate-x-full');
-        overlay.classList.remove('hidden');
-        if(window.misNotificaciones) renderizarNotificaciones(window.misNotificaciones);
-    } else {
-        // Cerrar
-        panel.classList.add('translate-x-full');
-        overlay.classList.add('hidden');
-        // Al cerrar, recargamos para actualizar el badge (si marcamos como leídas)
-        cargarNotificaciones();
-    }
-}
 
 async function marcarLeida(id, elemento) {
     if (elemento.classList.contains('bg-gray-100')) return; // Ya está leída
@@ -833,6 +766,104 @@ async function marcarLeida(id, elemento) {
         if(aunSinLeer === 0) badge.classList.add('hidden');
 
     } catch(e) { console.error(e); }
+}
+
+async function verificarBadgeNotificaciones() {
+    try {
+        // Pedimos pocas solo para ver el estado reciente
+        const res = await fetch(`${CONFIG.apiURL}/notificaciones/${CONFIG.usuario.id}?limit=5&offset=0`);
+        const data = await res.json();
+        
+        const badge = document.getElementById('badge-notif');
+        // Si alguna de las recientes no está leída, mostramos badge
+        const hayNoLeidas = data.some(n => !n.leido);
+        
+        if(hayNoLeidas) badge.classList.remove('hidden');
+        else badge.classList.add('hidden');
+    } catch (e) { console.error("Error badge", e); }
+}
+
+// 2. Función principal de carga (Con paginación)
+async function cargarNotificacionesPanel(reset = true) {
+    const lista = document.getElementById('lista-notificaciones');
+    const btnMas = document.getElementById('btn-mas-notif');
+    const msgFin = document.getElementById('msg-fin-notif');
+
+    if (reset) {
+        offsetNotif = 0;
+        lista.innerHTML = ''; 
+        btnMas.classList.add('hidden');
+        msgFin.classList.add('hidden');
+    } else {
+        btnMas.innerText = "Cargando...";
+        btnMas.disabled = true;
+    }
+
+    try {
+        const res = await fetch(`${CONFIG.apiURL}/notificaciones/${CONFIG.usuario.id}?limit=${LIMIT_NOTIF}&offset=${offsetNotif}`);
+        const data = await res.json();
+
+        if (data.length > 0) {
+            renderizarNotificaciones(data); // Append es false por defecto en render, necesitamos cambiar eso o hacerlo manual
+            offsetNotif += LIMIT_NOTIF;
+
+            if (data.length < LIMIT_NOTIF) {
+                btnMas.classList.add('hidden');
+                msgFin.classList.remove('hidden');
+            } else {
+                btnMas.classList.remove('hidden');
+                msgFin.classList.add('hidden');
+                btnMas.innerText = "Cargar más antiguas"; // Restaurar texto
+                btnMas.innerHTML = '<i class="fas fa-plus-circle mr-1"></i> Cargar más antiguas';
+                btnMas.disabled = false;
+            }
+        } else {
+            if(reset) lista.innerHTML = '<div class="text-center text-gray-400 text-xs mt-10">Sin notificaciones.</div>';
+            btnMas.classList.add('hidden');
+            msgFin.classList.remove('hidden');
+        }
+    } catch (e) { console.error("Error cargando notif", e); }
+}
+
+function renderizarNotificaciones(datos) {
+    const lista = document.getElementById('lista-notificaciones');
+    
+    // No limpiamos la lista aquí, solo añadimos (append)
+    datos.forEach(n => {
+        const fecha = moment(n.fecha).fromNow();
+        const estiloNoLeido = !n.leido ? 'bg-white border-l-4 border-blue-500 shadow-sm' : 'bg-gray-100 opacity-75 border border-gray-200';
+        const icono = n.tipo === 'ALERTA' ? '<i class="fas fa-exclamation-circle text-red-500"></i>' : '<i class="fas fa-info-circle text-blue-500"></i>';
+
+        const html = `
+            <div class="p-3 rounded mb-2 text-sm ${estiloNoLeido} transition hover:bg-white animate-fade" onclick="marcarLeida(${n.id}, this)">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-gray-700">${icono} Sistema</span>
+                    <span class="text-[10px] text-gray-400">${fecha}</span>
+                </div>
+                <p class="text-gray-600 text-xs leading-snug">${n.mensaje}</p>
+            </div>
+        `;
+        lista.innerHTML += html;
+    });
+}
+
+function toggleNotificaciones() {
+    const panel = document.getElementById('panel-notificaciones');
+    const overlay = document.getElementById('overlay-notif');
+    
+    if (panel.classList.contains('translate-x-full')) {
+        // ABRIR
+        panel.classList.remove('translate-x-full');
+        overlay.classList.remove('hidden');
+        // Cargamos desde cero al abrir
+        cargarNotificacionesPanel(true);
+    } else {
+        // CERRAR
+        panel.classList.add('translate-x-full');
+        overlay.classList.add('hidden');
+        // Al cerrar, actualizamos el badge por si leímos algo
+        verificarBadgeNotificaciones();
+    }
 }
 
 

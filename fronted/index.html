@@ -368,15 +368,22 @@
             </div>
 
             <div id="panel-notificaciones" class="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-[60] flex flex-col">
-                <div class="bg-blue-900 text-white p-4 flex justify-between items-center">
+                <div class="bg-blue-900 text-white p-4 flex justify-between items-center shrink-0">
                     <h3 class="font-bold"><i class="fas fa-bell mr-2"></i> Notificaciones</h3>
                     <button onclick="toggleNotificaciones()" class="text-blue-200 hover:text-white"><i class="fas fa-times"></i></button>
                 </div>
+                
                 <div id="lista-notificaciones" class="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50">
                     <p class="text-center text-gray-400 text-xs mt-10">Cargando...</p>
                 </div>
+
+                <div class="p-2 border-t border-gray-200 bg-gray-50 text-center shrink-0">
+                    <button id="btn-mas-notif" onclick="cargarNotificacionesPanel(false)" class="text-xs text-blue-600 font-bold hover:underline hidden">
+                        <i class="fas fa-plus-circle mr-1"></i> Cargar más antiguas
+                    </button>
+                    <p id="msg-fin-notif" class="text-[10px] text-gray-400 hidden">No hay más notificaciones.</p>
+                </div>
             </div>
-            <div id="overlay-notif" onclick="toggleNotificaciones()" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[55]"></div>
 
     <!-- Scripts -->
     <script>
