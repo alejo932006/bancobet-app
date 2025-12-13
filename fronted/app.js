@@ -4,6 +4,7 @@ const LIMITE_USER = 20; // <--- Aquí definimos que sea de 10 en 10
 let offsetNotif = 0;
 const LIMIT_NOTIF = 10;
 
+
 const CONFIG = {
     usuario: JSON.parse(localStorage.getItem('usuario_banco')),
     apiURL: 'https://api.prismanet.org/api',
@@ -41,12 +42,28 @@ const ESTILOS_ESTADO = {
     'REVERSADO': 'bg-gray-200 text-gray-500 line-through decoration-2'
 };
 
+const PUBLIC_VAPID_KEY = 'BAn_3XUQwgftg7mDA70h8Ffcq_a3wXgIeyL65Wl9EdGJzrAGvIsfKiknop7vCPiZMCR17J0iD9h9cER_Ro9wMug';
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     if (CONFIG.usuario) {
         actualizarUIUsuario(CONFIG.usuario);
         setInterval(sincronizarDatosUsuario, 5000);
         cargarListaDestinatarios(); // [NUEVO] Cargar usuarios al inicio
         notifInterval = setInterval(verificarBadgeNotificaciones, 10000);
+        if (Notification.permission === 'default' || Notification.permission === 'granted') {
+            activarNotificacionesPush();
+        }
     }
 });
 
@@ -863,6 +880,45 @@ function toggleNotificaciones() {
         overlay.classList.add('hidden');
         // Al cerrar, actualizamos el badge por si leímos algo
         verificarBadgeNotificaciones();
+    }
+}
+
+// 2. Función Principal: Activa el sistema en el celular
+async function activarNotificacionesPush() {
+    // Si el navegador no soporta esto, no hacemos nada
+    if (!('serviceWorker' in navigator)) return;
+    
+    try {
+        console.log("Iniciando registro de Push...");
+
+        // A. Instalar el Service Worker (el archivo sw.js)
+        const register = await navigator.serviceWorker.register('/sw.js', {
+            scope: '/'
+        });
+        await navigator.serviceWorker.ready;
+
+        // B. Suscribirse (Aquí el celular pregunta al usuario si acepta)
+        const subscription = await register.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+        });
+
+        // C. Enviar el ID del celular a tu Base de Datos
+        await fetch(`${CONFIG.apiURL}/subscribe`, {
+            method: 'POST',
+            body: JSON.stringify({
+                usuario_id: CONFIG.usuario.id,
+                subscription: subscription
+            }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log("✅ Notificaciones activadas y guardadas en BD.");
+
+    } catch (err) {
+        console.error("Error activando push (puede que el usuario bloqueara los permisos):", err);
     }
 }
 

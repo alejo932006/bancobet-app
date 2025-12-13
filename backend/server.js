@@ -8,6 +8,15 @@ const fs = require('fs');
 const bcrypt = require('bcrypt');
 const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
 
+const webpush = require('web-push');
+
+// Configura web-push
+webpush.setVapidDetails(
+    'mailto:bancobet39@gmail.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+);
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -289,7 +298,7 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
         if (file) {
             // Usamos req.protocol y host para armar http://localhost:3000/uploads/foto.jpg
             // Esto arregla el problema de "C:\Users..."
-            urlWeb = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+            urlWeb = `https://${req.get('host')}/uploads/${file.filename}`;
         }
 
         res.json({ 
@@ -695,10 +704,7 @@ app.delete('/api/admin/transacciones/:id', async (req, res) => {
         }
 
         const motivo = `Tu transacción ID ${id} (${tx.tipo_operacion}) ha sido REVERSADA/ANULADA por el administrador. El saldo ha sido ajustado.`;
-        await client.query(
-            "INSERT INTO notificaciones (usuario_id, mensaje, tipo) VALUES ($1, $2, 'ALERTA')",
-            [tx.usuario_id, motivo]
-        );
+        await notificarUsuario(client, tx.usuario_id, motivo);
 
         await client.query('COMMIT'); 
         res.json({ success: true });
@@ -889,10 +895,7 @@ app.put('/api/admin/transacciones/:id/monto', async (req, res) => {
         );
 
         const motivoEdit = `El monto de tu transacción ID ${id} (${tx.tipo_operacion}) fue corregido de $${montoViejo} a $${montoNuevo}. Tu saldo fue actualizado.`;
-        await client.query(
-            "INSERT INTO notificaciones (usuario_id, mensaje, tipo) VALUES ($1, $2, 'INFO')",
-            [tx.usuario_id, motivoEdit]
-        );
+        await notificarUsuario(client, tx.usuario_id, motivoEdit);
 
         await client.query('COMMIT');
         res.json({ success: true, message: "Monto actualizado correctamente" });
@@ -1072,13 +1075,12 @@ app.post('/api/admin/transacciones/:id/restaurar', async (req, res) => {
             // Opcional: Notificar también al otro usuario
             if (tx.usuario_destino_id) {
                  const msjPareja = `La transacción compartida ${refPareja} ha sido RESTAURADA.`;
-                 await client.query("INSERT INTO notificaciones (usuario_id, mensaje, tipo) VALUES ($1, $2, 'INFO')", [tx.usuario_destino_id, msjPareja]);
-            }
+                 await notificarUsuario(client, tx.usuario_destino_id, msjPareja);            }
         }
 
         // 6. Notificar al usuario principal
         const motivo = `La reversión de tu transacción ID ${id} fue cancelada. Operación RESTAURADA exitosamente.`;
-        await client.query("INSERT INTO notificaciones (usuario_id, mensaje, tipo) VALUES ($1, $2, 'INFO')", [tx.usuario_id, motivo]);
+        await notificarUsuario(client, tx.usuario_id, motivo);
 
         await client.query('COMMIT');
         res.json({ success: true, message: "Transacción y su pareja restauradas correctamente." });
@@ -1090,12 +1092,19 @@ app.post('/api/admin/transacciones/:id/restaurar', async (req, res) => {
     } finally { client.release(); }
 });
 
+//Notificaciones con paginación
 app.get('/api/notificaciones/:usuarioId', async (req, res) => {
     try {
-        // Traer las no leídas primero, luego las leídas (limit 20)
+        const { limit, offset } = req.query;
+        
+        // Valores por defecto: 10 notificaciones, empezando desde la 0
+        const limite = parseInt(limit) || 10;
+        const salto = parseInt(offset) || 0;
+
+        // Cambiamos ORDER BY a solo 'fecha DESC' para que la línea de tiempo sea coherente al paginar
         const result = await pool.query(
-            'SELECT * FROM notificaciones WHERE usuario_id = $1 ORDER BY leido ASC, fecha DESC LIMIT 20',
-            [req.params.usuarioId]
+            'SELECT * FROM notificaciones WHERE usuario_id = $1 ORDER BY fecha DESC LIMIT $2 OFFSET $3',
+            [req.params.usuarioId, limite, salto]
         );
         res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1108,5 +1117,64 @@ app.put('/api/notificaciones/leer/:id', async (req, res) => {
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// --- RUTA: GUARDAR SUSCRIPCIÓN DEL CELULAR ---
+app.post('/api/subscribe', async (req, res) => {
+    const { usuario_id, subscription } = req.body;
+    
+    try {
+        // Guardamos los datos técnicos del celular en la BD
+        await pool.query(
+            `INSERT INTO suscripciones_push (usuario_id, endpoint, keys_auth, keys_p256dh) 
+             VALUES ($1, $2, $3, $4)`,
+            [usuario_id, subscription.endpoint, subscription.keys.auth, subscription.keys.p256dh]
+        );
+        res.status(201).json({ success: true });
+    } catch (err) {
+        console.error("Error guardando suscripción:", err);
+        // Si falla (ej: duplicado) no rompemos nada, solo avisamos
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- FUNCIÓN AUXILIAR: NOTIFICAR (DB + PUSH) ---
+async function notificarUsuario(client, usuarioId, mensaje) {
+    try {
+        // 1. Guardar en tu Base de Datos (para que salga en la campana de la app)
+        await client.query("INSERT INTO notificaciones (usuario_id, mensaje, tipo) VALUES ($1, $2, 'INFO')", [usuarioId, mensaje]);
+
+        // 2. Buscar si el usuario tiene celular registrado para notificaciones
+        const subsRes = await client.query("SELECT * FROM suscripciones_push WHERE usuario_id = $1", [usuarioId]);
+
+        // 3. Preparar el mensaje para el celular
+        const payload = JSON.stringify({ 
+            title: 'Banco Bet', 
+            body: mensaje 
+        });
+
+        // 4. Enviar a todos los celulares registrados de ese usuario
+        for (const subRow of subsRes.rows) {
+            const subscription = {
+                endpoint: subRow.endpoint,
+                keys: {
+                    auth: subRow.keys_auth,
+                    p256dh: subRow.keys_p256dh
+                }
+            };
+
+            try {
+                await webpush.sendNotification(subscription, payload);
+            } catch (error) {
+                console.error("Error enviando push:", error);
+                // Si el celular ya no existe (error 410), borramos la suscripción vieja
+                if (error.statusCode === 410) {
+                    await client.query("DELETE FROM suscripciones_push WHERE id = $1", [subRow.id]);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error en notificarUsuario:", e);
+    }
+}
 
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });
