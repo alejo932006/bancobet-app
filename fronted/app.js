@@ -539,7 +539,10 @@ async function procesarTransaccion(e) {
     // Datos fijos
     formData.append('usuario_id', CONFIG.usuario.id);
     formData.append('tipo_operacion', UI.selectOperacion.value);
-    formData.append('monto', document.getElementById('monto').value);
+    const rawMonto = document.getElementById('monto').value;
+    const montoLimpio = rawMonto.replace(/\./g, '').replace(/,/g, '');
+
+    formData.append('monto', montoLimpio);
     formData.append('id_transaccion', document.getElementById('id_transaccion').value);
 
     // Guardar el Casino seleccionado

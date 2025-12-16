@@ -170,7 +170,7 @@
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monto</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 font-bold">$</span>
-                        <input type="number" id="monto" class="pl-7 w-full p-3 rounded-lg border bg-gray-50 focus:bg-white focus:border-blue-500 outline-none font-mono text-lg" placeholder="0" required>
+                        <input type="tel" inputmode="numeric" id="monto" class="pl-7 w-full p-3 rounded-lg border bg-gray-50 focus:bg-white focus:border-blue-500 outline-none font-mono text-lg" placeholder="0" required oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                 </div>
                 
