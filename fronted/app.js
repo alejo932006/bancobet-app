@@ -685,24 +685,72 @@ id referencia: ${idTx}`;
             // Codificamos para URL
             const textoCodificado = encodeURIComponent(mensajeWhatsApp);
 
+            // [MODIFICACIÓN] Bloqueo agresivo para obligar el envío a WhatsApp
             if (data.whatsapp_destino) {
-                Swal.fire({
-                    title: '¡Operación Exitosa!',
-                    text: 'Enviar comprobante por WhatsApp:',
-                    icon: 'success',
-                    showCancelButton: true,
-                    confirmButtonText: '<i class="fab fa-whatsapp"></i> Enviar',
-                    confirmButtonColor: '#25D366',
-                    cancelButtonText: 'Cerrar'
-                }).then((result) => {
-                    UI.form.reset(); resetearVista(); sincronizarDatosUsuario(); cambiarVista('historial');
-                    
-                    if (result.isConfirmed) {
-                        const numeroLimpio = data.whatsapp_destino.replace(/\D/g, '');
-                        window.open(`https://wa.me/${numeroLimpio}?text=${textoCodificado}`, '_blank');
-                    }
-                });
+                            
+                let enviado = false;
+
+                // Función recursiva: No te deja salir hasta que confirmes
+                const obligarEnvio = () => {
+                    Swal.fire({
+                        title: '⚠️ PASO FINAL OBLIGATORIO',
+                        html: `
+                            <div class="text-left">
+                                <p class="mb-2">Para validar tu <b>${tipo.replace(/_/g, ' ')}</b>, debes enviar el comprobante por WhatsApp.</p>
+                                <p class="text-sm text-red-600 font-bold">🚫 Si no lo envías, la transacción no será procesada.</p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        showCancelButton: false, // ¡Sin botón de cancelar!
+                        allowOutsideClick: false, // ¡Bloqueado clic afuera!
+                        allowEscapeKey: false,    // ¡Bloqueado tecla Escape!
+                        confirmButtonText: '<i class="fab fa-whatsapp"></i> Abrir WhatsApp y Enviar',
+                        confirmButtonColor: '#25D366',
+                        // Prevenir cierre automático inmediato para manejar la lógica
+                        preConfirm: () => {
+                            const numeroLimpio = data.whatsapp_destino.replace(/\D/g, '');
+                            // Abrimos WhatsApp
+                            window.open(`https://wa.me/${numeroLimpio}?text=${textoCodificado}`, '_blank');
+                            return true; // Esto pasa al siguiente then
+                        }
+                    }).then(() => {
+                        // Una vez que el usuario dio clic y (teóricamente) fue a WhatsApp y volvió:
+                        confirmarEnvioReal();
+                    });
+                };
+
+                const confirmarEnvioReal = () => {
+                    Swal.fire({
+                        title: '¿Ya enviaste el mensaje?',
+                        text: 'Debes presionar el botón de enviar en WhatsApp para terminar.',
+                        icon: 'question',
+                        showCancelButton: true,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        confirmButtonText: 'Sí, ya lo envié',
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonText: 'No, volver a abrir WhatsApp',
+                        cancelButtonColor: '#d33'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // AQUÍ RECIÉN permitimos limpiar y seguir
+                            Swal.fire('¡Proceso Finalizado!', 'Tu transacción está en proceso.', 'success');
+                            UI.form.reset(); 
+                            resetearVista(); 
+                            sincronizarDatosUsuario(); 
+                            cambiarVista('historial');
+                        } else {
+                            // Si dice que NO, lo mandamos de vuelta al bucle
+                            obligarEnvio();
+                        }
+                    });
+                };
+
+                // Iniciamos el ciclo
+                obligarEnvio();
+
             } else {
+                // Caso raro donde no haya número configurado
                 Swal.fire('Éxito', 'Operación registrada correctamente', 'success');
                 UI.form.reset(); resetearVista(); sincronizarDatosUsuario(); cambiarVista('historial');
             }
