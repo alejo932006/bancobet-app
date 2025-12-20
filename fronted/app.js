@@ -243,6 +243,16 @@ function renderizarLista(datos, limpiar = true) {
         const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
         
         const esReversada = tx.estado === 'REVERSADO';
+
+        // Solo mostramos el botón si es RECARGA, no está reversada y NO es Kairoplay
+        const botonRepetir = (tx.tipo_operacion === 'RECARGA' && !esReversada && tx.cc_casino !== 'KAIROPLAY') 
+            ? `<button onclick="event.stopPropagation(); repetirRecarga(${tx.id})" 
+                    class="ml-2 p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-full transition-colors shadow-sm border border-blue-100" 
+                    title="Repetir esta recarga Betplay">
+                <i class="fas fa-redo-alt text-[10px]"></i>
+            </button>` 
+            : '';
+            
         const claseOpacidad = esReversada ? 'opacity-60 grayscale' : '';
 
         // 1. Lógica de "Editado"
@@ -293,27 +303,25 @@ function renderizarLista(datos, limpiar = true) {
         // -----------------------------------------------
 
         const html = `
-            <div onclick="abrirModalDetalle(${tx.id})" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between animate-fade-in-up ${claseOpacidad} hover:bg-blue-50 transition">
-                <div class="flex items-center space-x-3 overflow-hidden">
-                    <div class="p-3 rounded-full ${estilo.bg} ${estilo.color} flex-shrink-0"><i class="fas ${estilo.icono} text-lg"></i></div>
-                    <div class="min-w-0"> <p class="font-bold text-gray-800 text-sm truncate pr-2">${tx.tipo_operacion.replace(/_/g, ' ')}</p>
-                        <p class="text-xs text-gray-400">${fecha}</p>
-                        
-                        ${htmlInfoCasa}
-
-                    </div>
+        <div onclick="abrirModalDetalle(${tx.id})" class="cursor-pointer bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between animate-fade-in-up ${claseOpacidad} hover:bg-blue-50 transition">
+            <div class="flex items-center space-x-3 overflow-hidden">
+                <div class="p-3 rounded-full ${estilo.bg} ${estilo.color} flex-shrink-0"><i class="fas ${estilo.icono} text-lg"></i></div>
+                <div class="min-w-0"> 
+                    <p class="font-bold text-gray-800 text-sm truncate pr-2">${tx.tipo_operacion.replace(/_/g, ' ')}</p>
+                    <p class="text-xs text-gray-400">${fecha}</p>
+                    ${htmlInfoCasa}
                 </div>
-                <div class="text-right flex-shrink-0 ml-2">
-                    <p class="font-bold ${esReversada ? 'line-through text-gray-400' : estilo.color}">
-                        ${estilo.signo} ${monto} ${htmlEditado}
-                    </p>
-                    ${htmlComision}
-                    
-                    <div class="mt-1">
-                         <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${claseEstado}">${tx.estado}</span>
-                    </div>
+            </div>
+            <div class="text-right flex-shrink-0 ml-2">
+                <p class="font-bold ${esReversada ? 'line-through text-gray-400' : estilo.color} flex items-center justify-end">
+                    ${estilo.signo} ${monto} ${htmlEditado} ${botonRepetir}
+                </p>
+                ${htmlComision}
+                <div class="mt-1">
+                     <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${claseEstado}">${tx.estado}</span>
                 </div>
-            </div>`;
+            </div>
+        </div>`;
         
         UI.listaHistorial.innerHTML += html;
     });
@@ -405,6 +413,16 @@ function abrirModalDetalle(id) {
     }
     
     div.innerHTML = html;
+
+    if (tx.tipo_operacion === 'RECARGA' && tx.estado !== 'REVERSADO') {
+        html += `
+            <div class="mt-4">
+                <button onclick="repetirRecarga(${tx.id})" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow hover:bg-blue-700 transition active:scale-95">
+                    <i class="fas fa-redo mr-2"></i> Repetir esta Recarga
+                </button>
+            </div>
+        `;
+    }
 
     const imgContainer = document.getElementById('modal-comprobante-container');
     if (tx.comprobante_ruta) {
@@ -977,6 +995,58 @@ async function activarNotificacionesPush() {
     } catch (err) {
         console.error("Error activando push (puede que el usuario bloqueara los permisos):", err);
     }
+}
+
+async function repetirRecarga(id) {
+    const tx = CONFIG.historialCache.find(t => t.id === id);
+    if (!tx) return;
+
+    // 1. VALIDACIÓN: Solo permitir si es BETPLAY
+    if (tx.cc_casino === 'KAIROPLAY') {
+        Swal.fire({
+            icon: 'info',
+            title: 'No disponible',
+            text: 'La repetición rápida solo está habilitada para recargas de Betplay.',
+            confirmButtonColor: '#1e3a8a'
+        });
+        return;
+    }
+
+    // Aseguramos que el monto sea un entero sin decimales
+    const montoEntero = Math.floor(tx.monto);
+
+    // 2. Confirmación al usuario
+    const { isConfirmed } = await Swal.fire({
+        title: '¿Repetir Recarga Betplay?',
+        text: `Se cargará de nuevo la recarga de ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(montoEntero)} para la cédula ${tx.cedula_destino || tx.pin_retiro}.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cargar datos',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1e3a8a'
+    });
+
+    if (!isConfirmed) return;
+
+    // 3. Proceso de carga en el formulario
+    cambiarVista('operar');
+    UI.selectOperacion.value = 'RECARGA';
+    actualizarFormulario();
+
+    // Insertamos el monto limpio
+    document.getElementById('monto').value = montoEntero.toString();
+    
+    // Forzamos selector a BETPLAY y activamos sus campos
+    const selectorCasino = document.getElementById('selector_casino');
+    selectorCasino.value = 'BETPLAY';
+    actualizarCamposCasino();
+
+    // Llenamos los campos específicos de Betplay
+    document.getElementById('cedula_recarga').value = tx.cedula_destino || tx.pin_retiro;
+    document.getElementById('nombre_recarga').value = tx.nombre_titular || '';
+
+    // Scroll suave al formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 
