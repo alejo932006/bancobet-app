@@ -949,8 +949,8 @@ async function activarNotificacionesPush() {
         console.log("Iniciando registro de Push...");
 
         // A. Instalar el Service Worker (el archivo sw.js)
-        const register = await navigator.serviceWorker.register('/sw.js', {
-            scope: '/'
+        const register = await navigator.serviceWorker.register('./sw.js', {
+            scope: './' // Ahora el alcance es la misma carpeta "fronted"
         });
         await navigator.serviceWorker.ready;
 
