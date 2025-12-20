@@ -979,23 +979,5 @@ async function activarNotificacionesPush() {
     }
 }
 
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
-            // Si el SW no está bien configurado o es viejo, lo matamos
-            registration.unregister().then(function(boolean) {
-                console.log('Service Worker antiguo eliminado para limpiar caché.');
-            });
-        }
-    });
-    
-    // Opcional: Si detectamos que es la versión vieja, recargamos la página una vez
-    if (!window.location.search.includes('v=3.0')) {
-        console.log("Versión vieja detectada, buscando actualización...");
-        // Esto solo debería hacerse si estás seguro de que quieres forzar la recarga
-        // window.location.reload(true); 
-    }
-}
-
 
 function cerrarSesion() { if(confirm('¿Salir?')) { localStorage.removeItem('usuario_banco'); window.location.href='login.html'; } }
