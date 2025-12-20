@@ -240,6 +240,12 @@ async function cargarMovimientosGlobales(reset = true) {
             const estadoLabel = esReversada ? '<span class="ml-2 text-[10px] bg-gray-200 text-gray-500 px-1 rounded uppercase">REVERSADO</span>' : '';
 
             let detalle = `<span class="font-bold">${tx.tipo_operacion.replace(/_/g, ' ')}</span> ${estadoLabel}`;
+
+            // [NUEVO] Si trae nombre titular (Recargas), mostrarlo resaltado
+            if(tx.nombre_titular) {
+                detalle += `<br><span class="text-xs font-bold text-blue-600 uppercase"><i class="fas fa-user-tag mr-1"></i>${tx.nombre_titular}</span>`;
+            }
+            
             if(tx.referencia_externa) detalle += `<br><span class="text-xs opacity-75">ID: ${tx.referencia_externa}</span>`;
 
             const btnReversar = esReversada 
@@ -876,10 +882,12 @@ function abrirModalDetalle(id) {
                       </div>
                       <p class="text-sm"><strong>ID Usuario Kairo:</strong> ${tx.pin_retiro || '---'}</p>`;
         } else {
-             html += `<div class="mt-2 mb-2">
-                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200">BETPLAY</span>
-                      </div>
-                      <p class="text-sm"><strong>Cédula a Recargar:</strong> ${tx.cedula_destino || tx.pin_retiro || 'N/A'}</p>`;
+            html += `<div class="mt-2 mb-2">
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200">BETPLAY</span>
+          </div>
+          <p class="text-sm"><strong>Cédula a Recargar:</strong> ${tx.cedula_destino || tx.pin_retiro || 'N/A'}</p>
+          
+          <p class="text-sm"><strong>Titular Cédula:</strong> ${tx.nombre_titular || '<span class="italic text-gray-400">No registrado</span>'}</p>`;
         }
     }
     else if (tx.tipo_operacion === 'DESCUENTO') {

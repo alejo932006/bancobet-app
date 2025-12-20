@@ -272,13 +272,13 @@ function renderizarLista(datos, limpiar = true) {
                 // En Kairo guardamos el ID en pin_retiro
                 idCasa = tx.pin_retiro || '---';
             } else {
-                // Es Betplay
-                if (tx.tipo_operacion === 'RETIRO') {
-                    // En retiros Betplay, el ID es cc_casino
-                    idCasa = tx.cc_casino || '---';
-                } else {
-                    // En recargas Betplay, el ID es cedula_destino
-                    idCasa = tx.cedula_destino || tx.pin_retiro || '---';
+                // Es RECARGA
+                // En recargas Betplay, el ID es cedula_destino
+                idCasa = tx.cedula_destino || tx.pin_retiro || '---';
+                
+                // [NUEVO] Si hay nombre titular, lo mostramos al lado
+                if(tx.nombre_titular) {
+                    idCasa += ` (${tx.nombre_titular})`; 
                 }
             }
 
@@ -577,6 +577,10 @@ async function procesarTransaccion(e) {
         agregar('nombre_cedula', 'nombre_cedula');
         agregar('pin_retiro', 'pin_retiro');
         agregar('cedula_recarga', 'cedula_recarga');
+        if (UI.selectOperacion.value === 'RECARGA') {
+            const nombreRecarga = document.getElementById('nombre_recarga').value;
+            if(nombreRecarga) formData.append('nombre_titular', nombreRecarga);
+        }
     }
 
     // Campos comunes (Traslados, Consignaciones)
@@ -637,24 +641,26 @@ ID referencia: ${idTx}`;
                 let infoRecarga = "";
                 
                 if(casino === 'KAIROPLAY') {
-                    // KAIROPLAY: Mostramos el ID de Usuario Kairo
                     const idKairo = document.getElementById('id_kairo_recarga').value;
                     infoRecarga = `ID Kairoplay: ${idKairo}`;
                 } else {
-                    // BETPLAY: Mostramos la Cédula
+                    // BETPLAY
                     const cedula = document.getElementById('cedula_recarga').value;
-                    infoRecarga = `Cedula a Recargar: ${cedula}`;
-                }
+                    // [NUEVO] Capturamos el nombre para el mensaje
+                    const nombreTitular = document.getElementById('nombre_recarga').value || "Sin nombre";
+                    infoRecarga = `Cedula a Recargar: ${cedula}
+Titular: ${nombreTitular}`; // <--- Agregado al mensaje
+                    }
 
-                mensajeWhatsApp = `
-Casino: ${casino}                
-Operacion: Recarga                
+                mensajeWhatsApp =`
+Casino: ${casino}
+Operacion: Recarga
 Usuario: ${nombreCliente}
 ${infoRecarga}
 Valor: ${monto}
 ----------------------
 id referencia: ${idTx}`;
-            }
+}
 
             // --- 3. OTROS CASOS (FORMATO ORIGINAL CONSERVADO) ---
             else {

@@ -281,9 +281,23 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
 
             // 4. Insertar transacción
             await client.query(
-                `INSERT INTO transacciones (usuario_id, tipo_operacion, monto, comision, estado, cc_casino, nombre_cedula, pin_retiro, cedula_destino, llave_bre_b, titular_cuenta, comprobante_ruta, referencia_externa) 
-                 VALUES ($1, $2, $3, $4, 'APROBADO', $5, $6, $7, $8, $9, $10, $11, $12)`,
-                [data.usuario_id, data.tipo_operacion, montoBruto, comision, data.cc_casino||null, data.nombre_cedula||null, data.pin_retiro||null, data.cedula_recarga||null, data.llave_bre_b||null, data.titular_cuenta||null, comprobantePath, data.id_transaccion]
+                `INSERT INTO transacciones (usuario_id, tipo_operacion, monto, comision, estado, cc_casino, nombre_cedula, pin_retiro, cedula_destino, llave_bre_b, titular_cuenta, comprobante_ruta, referencia_externa, nombre_titular) 
+                 VALUES ($1, $2, $3, $4, 'APROBADO', $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                [
+                    data.usuario_id, 
+                    data.tipo_operacion, 
+                    montoBruto, 
+                    comision, 
+                    data.cc_casino || null, 
+                    data.nombre_cedula || null, 
+                    data.pin_retiro || null, 
+                    data.cedula_recarga || null, 
+                    data.llave_bre_b || null, 
+                    data.titular_cuenta || null, 
+                    comprobantePath, 
+                    data.id_transaccion,
+                    data.nombre_titular || null  // <--- AQUÍ ESTÁ EL CAMBIO (El nuevo dato)
+                ]
             );
         }
 
