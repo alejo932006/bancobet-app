@@ -1388,9 +1388,11 @@ async function restaurarTransaccion(id) {
 
 const DEFINICION_REPORTES = {
     'RECARGAS': [
+        { key: 'ID', label: 'ID Tx' },               // <--- NUEVO
+        { key: 'Referencia', label: 'Referencia' },  // <--- NUEVO
         { key: 'Fecha', label: 'Fecha' },
         { key: 'Hora', label: 'Hora' },
-        { key: 'Nombre Cliente', label: 'Nombre Cliente' }, // <--- CAMBIO CLAVE AQUÍ
+        { key: 'Nombre Cliente', label: 'Nombre Cliente' },
         { key: 'Plataforma', label: 'Plataforma' },
         { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
         { key: 'Titular', label: 'Nombre Titular' },
@@ -1444,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 3. GENERAR EL EXCEL
+
 // 3. GENERAR EL EXCEL
 async function generarReporte(e) {
     e.preventDefault();
@@ -1483,13 +1485,15 @@ async function generarReporte(e) {
 
             if (tipo === 'RECARGAS') {
                 filaCompleta = {
+                    "ID": item.id,                                   // <--- NUEVO
+                    "Referencia": item.referencia_externa || '---',  // <--- NUEVO
                     "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
                     "Hora": moment(item.fecha_transaccion).format('HH:mm'),
                     "Nombre Cliente": item.nombre_cajero,
                     "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
                     "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
                     
-                    // [CORRECCIÓN AQUÍ] Buscamos en ambos campos por seguridad
+                    // Incluye la corrección anterior del titular:
                     "Titular": item.nombre_titular || item.nombre_cedula || '---', 
                     
                     "Valor": parseFloat(item.monto)

@@ -1204,12 +1204,15 @@ app.get('/api/admin/reporte-recargas', async (req, res) => {
         // Traemos también el nombre del cajero (usuario_id) por si el contador lo pide
         const query = `
             SELECT 
+                t.id,
+                t.referencia_externa,
                 t.fecha_transaccion,
                 t.monto,
                 t.cedula_destino, 
                 t.pin_retiro,
                 t.cc_casino,
                 t.nombre_titular,
+                t.nombre_cedula,  -- <--- AGREGA ESTA LÍNEA
                 u.nombre_completo as nombre_cajero
             FROM transacciones t
             JOIN usuarios u ON t.usuario_id = u.id
