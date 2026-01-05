@@ -1390,7 +1390,7 @@ async function restaurarTransaccion(id) {
         'RECARGAS': [
             { key: 'Fecha', label: 'Fecha' },
             { key: 'Hora', label: 'Hora' },
-            { key: 'Cajero', label: 'Nombre Cliente' },
+            { key: 'Cajero', label: 'Cajero Responsable' },
             { key: 'Plataforma', label: 'Plataforma' },
             { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
             { key: 'Titular', label: 'Nombre Titular' },
@@ -1489,7 +1489,7 @@ async function restaurarTransaccion(id) {
                     filaCompleta = {
                         "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
                         "Hora": moment(item.fecha_transaccion).format('HH:mm'),
-                        "Cliente": item.nombre_cajero,
+                        "Cajero": item.nombre_cajero,
                         "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
                         "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
                         "Titular": item.nombre_titular || '',
