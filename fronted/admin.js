@@ -1380,13 +1380,16 @@ async function restaurarTransaccion(id) {
         } catch (e) { Swal.fire('Error', 'Fallo de red', 'error'); }
     }
 
-    // CONFIGURACIÓN DE COLUMNAS DISPONIBLES
+    // ==========================================
+    // MÓDULO DE REPORTES CONTABLES
+    // ==========================================
+
     const DEFINICION_REPORTES = {
         'RECARGAS': [
             { key: 'Fecha', label: 'Fecha' },
             { key: 'Hora', label: 'Hora' },
             { key: 'Cajero', label: 'Cajero Responsable' },
-            { key: 'Plataforma', label: 'Plataforma (Bet/Kairo)' },
+            { key: 'Plataforma', label: 'Plataforma' },
             { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
             { key: 'Titular', label: 'Nombre Titular' },
             { key: 'Valor', label: 'Valor ($)' }
@@ -1402,30 +1405,35 @@ async function restaurarTransaccion(id) {
         ]
     };
 
-    // 1. FUNCIÓN PARA DIBUJAR CHECKBOXES (Se llama al iniciar y al cambiar el select)
+    // 1. DIBUJAR CHECKBOXES (Esto llena el espacio vacío)
     function renderizarOpcionesColumnas() {
-        const tipo = document.getElementById('tipo-reporte').value;
+        const selector = document.getElementById('tipo-reporte');
         const contenedor = document.getElementById('contenedor-columnas');
+        
+        // Protección por si no estamos en la vista de reportes
+        if (!selector || !contenedor) return;
+
+        const tipo = selector.value;
         const columnas = DEFINICION_REPORTES[tipo];
 
-        contenedor.innerHTML = ''; // Limpiar
+        contenedor.innerHTML = ''; // Limpiar opciones anteriores
 
         columnas.forEach(col => {
             const div = document.createElement('div');
             div.className = 'flex items-center';
             div.innerHTML = `
-                <input type="checkbox" id="col-${col.key}" value="${col.key}" class="chk-columna w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
+                <input type="checkbox" id="col-${col.key}" value="${col.key}" class="chk-columna w-4 h-4 text-yellow-400 rounded border-gray-300 focus:ring-yellow-500" checked>
                 <label for="col-${col.key}" class="ml-2 cursor-pointer select-none">${col.label}</label>
             `;
             contenedor.appendChild(div);
         });
     }
 
-    // 2. HELPER PARA MARCAR/DESMARCAR TODAS
+    // Helper para marcar/desmarcar
     function marcarTodas(activar) {
         document.querySelectorAll('.chk-columna').forEach(chk => chk.checked = activar);
-    }
-
+        }
+        
     // 3. EVENTO: Cuando cambie el select, redibujar las opciones
     document.addEventListener('DOMContentLoaded', () => {
         const selectReporte = document.getElementById('tipo-reporte');
@@ -1436,7 +1444,7 @@ async function restaurarTransaccion(id) {
         }
     });
 
-    // 4. VERSIÓN MEJORADA DE "GENERAR REPORTE"
+    // 2. GENERAR EL EXCEL
     async function generarReporte(e) {
         e.preventDefault();
         
@@ -1444,11 +1452,10 @@ async function restaurarTransaccion(id) {
         const inicio = document.getElementById('rep-inicio').value;
         const fin = document.getElementById('rep-fin').value;
 
-        // Detectar qué columnas quiere el usuario
+        // Detectar columnas marcadas
         const checkboxes = document.querySelectorAll('.chk-columna:checked');
-        if (checkboxes.length === 0) return Swal.fire('Error', 'Debes seleccionar al menos una columna.', 'warning');
+        if (checkboxes.length === 0) return Swal.fire('Error', 'Selecciona al menos una columna.', 'warning');
         
-        // Crear lista de claves seleccionadas (Ej: ['Fecha', 'Valor'])
         const columnasSeleccionadas = Array.from(checkboxes).map(chk => chk.value);
 
         if (!inicio || !fin) return Swal.fire('Atención', 'Selecciona las fechas.', 'warning');
@@ -1471,9 +1478,9 @@ async function restaurarTransaccion(id) {
                 return;
             }
 
-            // --- FILTRADO DE COLUMNAS ---
+            // --- MAPEO DE DATOS ---
             const datosExcel = datos.map(item => {
-                // 1. Generamos el objeto completo primero (Datos Crudos)
+                // Generar objeto completo
                 let filaCompleta = {};
 
                 if (tipo === 'RECARGAS') {
@@ -1498,7 +1505,7 @@ async function restaurarTransaccion(id) {
                     };
                 }
 
-                // 2. Filtramos: Solo devolvemos las claves que el usuario marcó
+                // Filtrar solo las columnas elegidas
                 let filaFiltrada = {};
                 columnasSeleccionadas.forEach(key => {
                     filaFiltrada[key] = filaCompleta[key];
@@ -1507,10 +1514,8 @@ async function restaurarTransaccion(id) {
                 return filaFiltrada;
             });
 
-            // Generar Excel
+            // Crear Excel
             const worksheet = XLSX.utils.json_to_sheet(datosExcel);
-            
-            // Ajustar ancho
             const wscols = columnasSeleccionadas.map(() => ({wch: 20}));
             worksheet['!cols'] = wscols;
 
@@ -1518,11 +1523,11 @@ async function restaurarTransaccion(id) {
             XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte");
             XLSX.writeFile(workbook, `Reporte_${tipo}_${inicio}.xlsx`);
 
-            Swal.fire('Éxito', 'Reporte personalizado descargado.', 'success');
+            Swal.fire('Éxito', 'Reporte descargado.', 'success');
 
         } catch (err) {
             console.error(err);
-            Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
+            Swal.fire('Error', 'No se pudo generar el reporte. Revisa la consola.', 'error');
         } finally {
             btn.innerHTML = textoOriginal;
             btn.disabled = false;
