@@ -1379,6 +1379,8 @@ async function restaurarTransaccion(id) {
             }
         } catch (e) { Swal.fire('Error', 'Fallo de red', 'error'); }
     }
+    }
+
 
     // ==========================================
     // MÓDULO DE REPORTES CONTABLES
@@ -1533,4 +1535,4 @@ async function restaurarTransaccion(id) {
             btn.disabled = false;
         }
     }
-}
+
