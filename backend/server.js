@@ -606,7 +606,7 @@ app.get('/api/admin/transacciones', async (req, res) => {
 
     // 1. Filtro Fecha
     if (fechaInicio && fechaFin) { 
-        query += ` AND t.fecha_transaccion::date BETWEEN $${paramCount} AND $${paramCount + 1}`; 
+        query += ` AND (t.fecha_transaccion AT TIME ZONE 'America/Bogota')::date BETWEEN $${paramCount} AND $${paramCount + 1}`; 
         params.push(fechaInicio, fechaFin); 
         paramCount += 2; 
     }
