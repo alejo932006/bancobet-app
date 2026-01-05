@@ -606,7 +606,7 @@ app.get('/api/admin/transacciones', async (req, res) => {
 
     // 1. Filtro Fecha
     if (fechaInicio && fechaFin) { 
-        query += ` AND (t.fecha_transaccion AT TIME ZONE 'America/Bogota')::date BETWEEN $${paramCount} AND $${paramCount + 1}`; 
+        query += ` AND (t.fecha_transaccion - INTERVAL '5 hours')::date BETWEEN $${paramCount} AND $${paramCount + 1}`;
         params.push(fechaInicio, fechaFin); 
         paramCount += 2; 
     }
@@ -1191,18 +1191,18 @@ async function notificarUsuario(client, usuarioId, mensaje) {
     }
 }
 
-// [NUEVO] REPORTE CONTABLE DE RECARGAS (EXCEL)
+
 app.get('/api/admin/reporte-recargas', async (req, res) => {
-    const { fechaInicio, fechaFin } = req.query;
+    // 1. Recibimos el nuevo parámetro 'plataforma'
+    const { fechaInicio, fechaFin, plataforma } = req.query; 
     
     if (!fechaInicio || !fechaFin) {
         return res.status(400).json({ error: "Faltan fechas" });
     }
 
     try {
-        // Buscamos solo RECARGAS APROBADAS
-        // Traemos también el nombre del cajero (usuario_id) por si el contador lo pide
-        const query = `
+        // Consulta base
+        let query = `
             SELECT 
                 t.id,
                 t.referencia_externa,
@@ -1212,15 +1212,25 @@ app.get('/api/admin/reporte-recargas', async (req, res) => {
                 t.pin_retiro,
                 t.cc_casino,
                 t.nombre_titular,
-                t.nombre_cedula,  -- <--- AGREGA ESTA LÍNEA
+                t.nombre_cedula,
                 u.nombre_completo as nombre_cajero
             FROM transacciones t
             JOIN usuarios u ON t.usuario_id = u.id
             WHERE t.tipo_operacion = 'RECARGA' 
             AND t.estado = 'APROBADO'
-            AND t.fecha_transaccion::date BETWEEN $1 AND $2
-            ORDER BY t.fecha_transaccion ASC
+            AND (t.fecha_transaccion - INTERVAL '5 hours')::date BETWEEN $1 AND $2
         `;
+
+        // 2. Agregamos el FILTRO DE PLATAFORMA
+        if (plataforma === 'KAIROPLAY') {
+            query += " AND t.cc_casino = 'KAIROPLAY'";
+        } else if (plataforma === 'BETPLAY') {
+            // Betplay son todas las que NO son Kairoplay (o son nulas)
+            query += " AND (t.cc_casino != 'KAIROPLAY' OR t.cc_casino IS NULL)";
+        }
+        // Si es 'TODAS', no agregamos nada extra
+
+        query += " ORDER BY t.fecha_transaccion ASC";
         
         const result = await pool.query(query, [fechaInicio, fechaFin]);
         res.json(result.rows);
@@ -1251,7 +1261,7 @@ app.get('/api/admin/reporte-consignaciones', async (req, res) => {
             JOIN usuarios u ON t.usuario_id = u.id
             WHERE t.tipo_operacion = 'CONSIGNACION' 
             AND t.estado = 'APROBADO'
-            AND t.fecha_transaccion::date BETWEEN $1 AND $2
+            AND (t.fecha_transaccion - INTERVAL '5 hours')::date BETWEEN $1 AND $2
             ORDER BY t.fecha_transaccion ASC
         `;
         

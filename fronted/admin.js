@@ -1432,6 +1432,14 @@ function renderizarOpcionesColumnas() {
     });
 }
 
+document.getElementById('tipo-reporte').addEventListener('change', (e) => {
+    const contenedor = document.getElementById('contenedor-plataforma');
+    if(contenedor) {
+        if(e.target.value === 'RECARGAS') contenedor.classList.remove('hidden');
+        else contenedor.classList.add('hidden');
+    }
+});
+
 // Helper para marcar/desmarcar
 function marcarTodas(activar) {
     document.querySelectorAll('.chk-columna').forEach(chk => chk.checked = activar);
@@ -1454,6 +1462,7 @@ async function generarReporte(e) {
     const tipo = document.getElementById('tipo-reporte').value;
     const inicio = document.getElementById('rep-inicio').value;
     const fin = document.getElementById('rep-fin').value;
+    const plataforma = document.getElementById('rep-plataforma') ? document.getElementById('rep-plataforma').value : 'TODAS';
 
     const checkboxes = document.querySelectorAll('.chk-columna:checked');
     if (checkboxes.length === 0) return Swal.fire('Error', 'Selecciona al menos una columna.', 'warning');
@@ -1469,8 +1478,14 @@ async function generarReporte(e) {
 
     try {
         let url = '';
-        if (tipo === 'RECARGAS') url = `${API_URL}/reporte-recargas?fechaInicio=${inicio}&fechaFin=${fin}`;
-        else if (tipo === 'CONSIGNACIONES') url = `${API_URL}/reporte-consignaciones?fechaInicio=${inicio}&fechaFin=${fin}`;
+        
+        if (tipo === 'RECARGAS') {
+            // 2. AQUÍ AGREGAMOS EL FILTRO A LA URL
+            url = `${API_URL}/reporte-recargas?fechaInicio=${inicio}&fechaFin=${fin}&plataforma=${plataforma}`;
+        } 
+        else if (tipo === 'CONSIGNACIONES') {
+            url = `${API_URL}/reporte-consignaciones?fechaInicio=${inicio}&fechaFin=${fin}`;
+        }
 
         const res = await fetch(url);
         const datos = await res.json();
