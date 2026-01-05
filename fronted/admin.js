@@ -99,6 +99,9 @@ function cargarVista(vista) {
         cargarHistorialPagosKairo();
     }
     if (vista === 'config') { cargarConfigWhatsapp(); cargarHorario(); cargarAjusteKairo();}
+    if (vista === 'reportes') {
+        renderizarOpcionesColumnas(); // <--- ESTO HACE QUE APAREZCAN LAS OPCIONES
+    }
 }
 
 // [NUEVO] Función para cerrar sesión explícitamente
