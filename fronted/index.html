@@ -228,8 +228,56 @@
                 </div>
                 
                 <div id="campos-consignacion" class="campos-grupo hidden space-y-3">
-                    <input type="text" id="llave_bre_b" placeholder="Llave BRE-B" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
-                    <input type="text" id="titular_cuenta" placeholder="Titular de la cuenta" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+    
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Método de Consignación</label>
+                    <div class="relative">
+                        <select id="tipo_destino_consignacion" onchange="toggleConsignacionCampos()" class="block w-full p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900 font-bold focus:outline-none focus:border-blue-500">
+                            <option value="LLAVE">🔑 Llave BRE-B</option>
+                            <option value="CUENTA">🏦 Cuenta Bancaria</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-blue-900"><i class="fas fa-chevron-down"></i></div>
+                    </div>
+                
+                    <div id="grupo-llave-bre" class="space-y-3 animate-fade">
+                        <input type="text" id="llave_bre_b" placeholder="Ingresa la Llave BRE-B" class="w-full p-3 border rounded focus:border-blue-500 outline-none font-mono">
+                        <input type="text" id="titular_cuenta" placeholder="Titular de la cuenta" class="w-full p-3 border rounded focus:border-blue-500 outline-none uppercase">
+                    </div>
+                
+                    <div id="grupo-cuenta-bancaria" class="space-y-3 hidden animate-fade">
+    
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Banco</label>
+                            <input type="text" id="nombre_banco" list="lista-bancos" placeholder="Escribe o selecciona..." class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                            <datalist id="lista-bancos">
+                                <option value="Bancolombia">
+                                <option value="Nequi">
+                                <option value="Daviplata">
+                                <option value="Davivienda">
+                                <option value="BBVA">
+                                <option value="Banco de Bogotá">
+                                <option value="Caja Social">
+                            </datalist>
+                        </div>
+                    
+                        <div class="flex gap-2">
+                            <div class="w-1/2">
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tipo</label>
+                                <select id="tipo_cuenta_banco" class="w-full p-3 border rounded bg-white focus:border-blue-500 outline-none">
+                                    <option value="Ahorros">Ahorros</option>
+                                    <option value="Corriente">Corriente</option>
+                                </select>
+                            </div>
+                            <div class="w-1/2">
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Número</label>
+                                <input type="tel" id="numero_cuenta_banco" placeholder="No. Cuenta" class="w-full p-3 border rounded focus:border-blue-500 outline-none font-mono">
+                            </div>
+                        </div>
+                    
+                        <div class="pt-2 border-t border-gray-100 space-y-3">
+                            <input type="text" id="titular_banco" placeholder="Nombre del Titular" class="w-full p-3 border rounded focus:border-blue-500 outline-none uppercase">
+                            <input type="number" id="cedula_banco" placeholder="Cédula del Titular" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="mt-6 pt-4 border-t border-gray-100">

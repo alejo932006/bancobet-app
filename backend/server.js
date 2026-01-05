@@ -1191,4 +1191,73 @@ async function notificarUsuario(client, usuarioId, mensaje) {
     }
 }
 
+// [NUEVO] REPORTE CONTABLE DE RECARGAS (EXCEL)
+app.get('/api/admin/reporte-recargas', async (req, res) => {
+    const { fechaInicio, fechaFin } = req.query;
+    
+    if (!fechaInicio || !fechaFin) {
+        return res.status(400).json({ error: "Faltan fechas" });
+    }
+
+    try {
+        // Buscamos solo RECARGAS APROBADAS
+        // Traemos también el nombre del cajero (usuario_id) por si el contador lo pide
+        const query = `
+            SELECT 
+                t.fecha_transaccion,
+                t.monto,
+                t.cedula_destino, 
+                t.pin_retiro,
+                t.cc_casino,
+                t.nombre_titular,
+                u.nombre_completo as nombre_cajero
+            FROM transacciones t
+            JOIN usuarios u ON t.usuario_id = u.id
+            WHERE t.tipo_operacion = 'RECARGA' 
+            AND t.estado = 'APROBADO'
+            AND t.fecha_transaccion::date BETWEEN $1 AND $2
+            ORDER BY t.fecha_transaccion ASC
+        `;
+        
+        const result = await pool.query(query, [fechaInicio, fechaFin]);
+        res.json(result.rows);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// [NUEVO] REPORTE DE CONSIGNACIONES (EXCEL)
+app.get('/api/admin/reporte-consignaciones', async (req, res) => {
+    const { fechaInicio, fechaFin } = req.query;
+    
+    if (!fechaInicio || !fechaFin) {
+        return res.status(400).json({ error: "Faltan fechas" });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                t.fecha_transaccion,
+                t.monto,
+                t.llave_bre_b,      -- El Banco o Llave
+                t.titular_cuenta,   -- A quién se le envió
+                t.referencia_externa,
+                u.nombre_completo as usuario_solicitante
+            FROM transacciones t
+            JOIN usuarios u ON t.usuario_id = u.id
+            WHERE t.tipo_operacion = 'CONSIGNACION' 
+            AND t.estado = 'APROBADO'
+            AND t.fecha_transaccion::date BETWEEN $1 AND $2
+            ORDER BY t.fecha_transaccion ASC
+        `;
+        
+        const result = await pool.query(query, [fechaInicio, fechaFin]);
+        res.json(result.rows);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });

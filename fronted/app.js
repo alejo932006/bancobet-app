@@ -601,11 +601,36 @@ async function procesarTransaccion(e) {
         }
     }
 
-    // Campos comunes (Traslados, Consignaciones)
-    const agregarComun = (id, nombre) => { const val = document.getElementById(id)?.value; if(val) formData.append(nombre, val); };
-    agregarComun('cliente_destino', 'usuario_destino_id');
-    agregarComun('llave_bre_b', 'llave_bre_b');
-    agregarComun('titular_cuenta', 'titular_cuenta');
+    // Lógica modificada para CONSIGNACIÓN (Actualizada con Titular y Cédula)
+    if (UI.selectOperacion.value === 'CONSIGNACION') {
+        const tipoDestino = document.getElementById('tipo_destino_consignacion').value;
+
+        if (tipoDestino === 'LLAVE') {
+            // Si es Llave, mandamos los campos normales
+            formData.append('llave_bre_b', document.getElementById('llave_bre_b').value);
+            formData.append('titular_cuenta', document.getElementById('titular_cuenta').value);
+        } else {
+            // Si es Cuenta Bancaria, capturamos todo
+            const banco = document.getElementById('nombre_banco').value;
+            const tipoCuenta = document.getElementById('tipo_cuenta_banco').value;
+            const numeroCuenta = document.getElementById('numero_cuenta_banco').value;
+            
+            const titular = document.getElementById('titular_banco').value;
+            const cedula = document.getElementById('cedula_banco').value;
+
+            // 1. En "llave" mandamos los datos del banco
+            const detalleBanco = `${banco} - ${tipoCuenta} - ${numeroCuenta}`;
+            formData.append('llave_bre_b', detalleBanco);
+            
+            // 2. En "titular" mandamos Nombre + Cédula para que el admin lo vea todo junto
+            const detalleTitular = `${titular} (CC: ${cedula})`;
+            formData.append('titular_cuenta', detalleTitular); 
+        }
+    } else {
+        // Para Traslados u otros que usen lógica común
+        const agregarComun = (id, nombre) => { const val = document.getElementById(id)?.value; if(val) formData.append(nombre, val); };
+        agregarComun('cliente_destino', 'usuario_destino_id');
+    }
     
     const f = document.getElementById('comprobante_archivo'); 
     if(f && f.files.length) formData.append('comprobante_archivo', f.files[0]);
@@ -690,9 +715,22 @@ id referencia: ${idTx}`;
                     detalles = `Destinatario: *${nombreDestino}*\nTipo: *Transferencia Interna*`;
                 }
                 else if(tipo === 'CONSIGNACION') {
-                    const banco = document.getElementById('llave_bre_b').value;
-                    const titular = document.getElementById('titular_cuenta').value;
-                    detalles = `Banco / Llave: *${banco}*\nTitular: *${titular}*`;
+                    const tipoDestino = document.getElementById('tipo_destino_consignacion').value;
+                    
+                    if (tipoDestino === 'LLAVE') {
+                        const banco = document.getElementById('llave_bre_b').value;
+                        const titular = document.getElementById('titular_cuenta').value;
+                        detalles = `Destino: *Llave BRE-B*\nLlave: *${banco}*\nTitular: *${titular}*`;
+                    } else {
+                        // Recogemos los nuevos datos para el mensaje
+                        const banco = document.getElementById('nombre_banco').value;
+                        const tipoCta = document.getElementById('tipo_cuenta_banco').value;
+                        const numCta = document.getElementById('numero_cuenta_banco').value;
+                        const titular = document.getElementById('titular_banco').value;
+                        const cedula = document.getElementById('cedula_banco').value;
+                        
+                        detalles = `Destino: *Cuenta Bancaria*\nBanco: *${banco}*\nTipo: *${tipoCta}*\nNo. Cuenta: *${numCta}*\nTitular: *${titular}*\nC.C: *${cedula}*`;
+                    }
                 }
                 else if(tipo === 'ABONO_CAJA') {
                     if (data.comprobante_url) {
@@ -1047,6 +1085,20 @@ async function repetirRecarga(id) {
 
     // Scroll suave al formulario
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleConsignacionCampos() {
+    const tipo = document.getElementById('tipo_destino_consignacion').value;
+    const grupoLlave = document.getElementById('grupo-llave-bre');
+    const grupoBanco = document.getElementById('grupo-cuenta-bancaria');
+
+    if (tipo === 'LLAVE') {
+        grupoLlave.classList.remove('hidden');
+        grupoBanco.classList.add('hidden');
+    } else {
+        grupoLlave.classList.add('hidden');
+        grupoBanco.classList.remove('hidden');
+    }
 }
 
 

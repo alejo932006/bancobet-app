@@ -21,7 +21,9 @@
     <meta name="apple-mobile-web-app-title" content="BancoBet">
     <link rel="apple-touch-icon" href="icon-192.png">
     
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-100 font-sans h-screen flex flex-col md:flex-row overflow-hidden">
 
@@ -76,6 +78,9 @@
             </button>
             <button onclick="navegar('config')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
                 <i class="fas fa-cogs w-8"></i> Configuración
+            </button>
+            <button onclick="navegar('reportes')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-file-excel w-8"></i> Reportes Contables
             </button>
         </nav>
         <div class="p-4 border-t border-blue-800">
@@ -815,6 +820,67 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+
+        <div id="vista-reportes" class="vista-seccion hidden animate-fade max-w-4xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Reportes Contables</h2>
+            
+            <div class="bg-white p-8 rounded-xl shadow-md border border-gray-200">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="bg-blue-100 p-3 rounded-full text-blue-600">
+                        <i class="fas fa-file-excel text-3xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-xl text-gray-800">Centro de Exportación</h3>
+                        <p class="text-sm text-gray-500">Genera archivos Excel (.xlsx) detallados para contabilidad.</p>
+                    </div>
+                </div>
+
+                <form onsubmit="generarReporte(event)" class="space-y-6">
+                    
+                    <div>
+                        <label class="block text-sm font-bold text-gray-600 mb-2">Tipo de Reporte</label>
+                        <div class="relative">
+                            <select id="tipo-reporte" class="w-full p-3 border rounded-lg appearance-none outline-none bg-white font-bold text-gray-700 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                                <option value="RECARGAS">📄 Recargas (Ingresos)</option>
+                                <option value="CONSIGNACIONES">🏦 Consignaciones (Salidas Banco)</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-bold text-gray-600">Personalizar Columnas</label>
+                                <button type="button" onclick="marcarTodas(true)" class="text-xs text-blue-600 font-bold hover:underline">Marcar Todas</button>
+                            </div>
+                            
+                            <div id="contenedor-columnas" class="grid grid-cols-2 gap-3 text-sm text-gray-700">
+                                </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-600 mb-2">Fecha Inicio</label>
+                            <input type="date" id="rep-inicio" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-600 mb-2">Fecha Fin</label>
+                            <input type="date" id="rep-fin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-600">
+                        <p class="font-bold mb-1"><i class="fas fa-info-circle text-blue-500"></i> Nota:</p>
+                        <p>El archivo incluirá todas las transacciones <strong>APROBADAS</strong> en el rango de fechas seleccionado.</p>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg transition transform active:scale-95 flex justify-center items-center gap-2">
+                        <i class="fas fa-download"></i> DESCARGAR EXCEL
+                    </button>
+                </form>
             </div>
         </div>
     </main>
