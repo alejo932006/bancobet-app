@@ -1379,160 +1379,153 @@ async function restaurarTransaccion(id) {
             }
         } catch (e) { Swal.fire('Error', 'Fallo de red', 'error'); }
     }
+
     }
 
+// ==========================================
+// MÓDULO DE REPORTES CONTABLES
+// ==========================================
 
-    // ==========================================
-    // MÓDULO DE REPORTES CONTABLES
-    // ==========================================
+const DEFINICION_REPORTES = {
+    'RECARGAS': [
+        { key: 'Fecha', label: 'Fecha' },
+        { key: 'Hora', label: 'Hora' },
+        { key: 'Nombre Cliente', label: 'Nombre Cliente' }, // <--- CAMBIO CLAVE AQUÍ
+        { key: 'Plataforma', label: 'Plataforma' },
+        { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
+        { key: 'Titular', label: 'Nombre Titular' },
+        { key: 'Valor', label: 'Valor ($)' }
+    ],
+    'CONSIGNACIONES': [
+        { key: 'Fecha', label: 'Fecha' },
+        { key: 'Hora', label: 'Hora' },
+        { key: 'Solicitado Por', label: 'Solicitante' },
+        { key: 'Banco / Llave', label: 'Banco Destino' },
+        { key: 'Titular Cuenta', label: 'Titular Cuenta' },
+        { key: 'Ref. Interna', label: 'Referencia Interna' },
+        { key: 'Valor', label: 'Valor ($)' }
+    ]
+};
 
-    const DEFINICION_REPORTES = {
-        'RECARGAS': [
-            { key: 'Fecha', label: 'Fecha' },
-            { key: 'Hora', label: 'Hora' },
-            { key: 'Cajero', label: 'Cajero Responsable' },
-            { key: 'Plataforma', label: 'Plataforma' },
-            { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
-            { key: 'Titular', label: 'Nombre Titular' },
-            { key: 'Valor', label: 'Valor ($)' }
-        ],
-        'CONSIGNACIONES': [
-            { key: 'Fecha', label: 'Fecha' },
-            { key: 'Hora', label: 'Hora' },
-            { key: 'Solicitado Por', label: 'Solicitante' },
-            { key: 'Banco / Llave', label: 'Banco Destino' },
-            { key: 'Titular Cuenta', label: 'Titular Cuenta' },
-            { key: 'Ref. Interna', label: 'Referencia Interna' },
-            { key: 'Valor', label: 'Valor ($)' }
-        ]
-    };
+// 1. DIBUJAR CHECKBOXES
+function renderizarOpcionesColumnas() {
+    const selector = document.getElementById('tipo-reporte');
+    const contenedor = document.getElementById('contenedor-columnas');
+    
+    if (!selector || !contenedor) return;
 
-    // 1. DIBUJAR CHECKBOXES (Esto llena el espacio vacío)
-    function renderizarOpcionesColumnas() {
-        const selector = document.getElementById('tipo-reporte');
-        const contenedor = document.getElementById('contenedor-columnas');
-        
-        // Protección por si no estamos en la vista de reportes
-        if (!selector || !contenedor) return;
+    const tipo = selector.value;
+    const columnas = DEFINICION_REPORTES[tipo];
 
-        const tipo = selector.value;
-        const columnas = DEFINICION_REPORTES[tipo];
+    contenedor.innerHTML = ''; 
 
-        contenedor.innerHTML = ''; // Limpiar opciones anteriores
-
-        columnas.forEach(col => {
-            const div = document.createElement('div');
-            div.className = 'flex items-center';
-            div.innerHTML = `
-                <input type="checkbox" id="col-${col.key}" value="${col.key}" class="chk-columna w-4 h-4 text-yellow-400 rounded border-gray-300 focus:ring-yellow-500" checked>
-                <label for="col-${col.key}" class="ml-2 cursor-pointer select-none">${col.label}</label>
-            `;
-            contenedor.appendChild(div);
-        });
-    }
-
-    // Helper para marcar/desmarcar
-    function marcarTodas(activar) {
-        document.querySelectorAll('.chk-columna').forEach(chk => chk.checked = activar);
-        }
-        
-    // 3. EVENTO: Cuando cambie el select, redibujar las opciones
-    document.addEventListener('DOMContentLoaded', () => {
-        const selectReporte = document.getElementById('tipo-reporte');
-        if(selectReporte) {
-            selectReporte.addEventListener('change', renderizarOpcionesColumnas);
-            // Cargar opciones iniciales
-            renderizarOpcionesColumnas();
-        }
+    columnas.forEach(col => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center';
+        div.innerHTML = `
+            <input type="checkbox" id="col-${col.key.replace(/\s/g, '')}" value="${col.key}" class="chk-columna w-4 h-4 text-yellow-400 rounded border-gray-300 focus:ring-yellow-500" checked>
+            <label for="col-${col.key.replace(/\s/g, '')}" class="ml-2 cursor-pointer select-none">${col.label}</label>
+        `;
+        contenedor.appendChild(div);
     });
+}
 
-    // 2. GENERAR EL EXCEL
-    async function generarReporte(e) {
-        e.preventDefault();
-        
-        const tipo = document.getElementById('tipo-reporte').value;
-        const inicio = document.getElementById('rep-inicio').value;
-        const fin = document.getElementById('rep-fin').value;
+// Helper para marcar/desmarcar
+function marcarTodas(activar) {
+    document.querySelectorAll('.chk-columna').forEach(chk => chk.checked = activar);
+}
 
-        // Detectar columnas marcadas
-        const checkboxes = document.querySelectorAll('.chk-columna:checked');
-        if (checkboxes.length === 0) return Swal.fire('Error', 'Selecciona al menos una columna.', 'warning');
-        
-        const columnasSeleccionadas = Array.from(checkboxes).map(chk => chk.value);
+// 2. EVENTO: Activación automática
+document.addEventListener('DOMContentLoaded', () => {
+    const selectReporte = document.getElementById('tipo-reporte');
+    if(selectReporte) {
+        selectReporte.addEventListener('change', renderizarOpcionesColumnas);
+        renderizarOpcionesColumnas();
+    }
+});
 
-        if (!inicio || !fin) return Swal.fire('Atención', 'Selecciona las fechas.', 'warning');
+// 3. GENERAR EL EXCEL
+async function generarReporte(e) {
+    e.preventDefault();
+    
+    const tipo = document.getElementById('tipo-reporte').value;
+    const inicio = document.getElementById('rep-inicio').value;
+    const fin = document.getElementById('rep-fin').value;
 
-        const btn = e.submitter;
-        const textoOriginal = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-        btn.disabled = true;
+    const checkboxes = document.querySelectorAll('.chk-columna:checked');
+    if (checkboxes.length === 0) return Swal.fire('Error', 'Selecciona al menos una columna.', 'warning');
+    
+    const columnasSeleccionadas = Array.from(checkboxes).map(chk => chk.value);
 
-        try {
-            let url = '';
-            if (tipo === 'RECARGAS') url = `${API_URL}/reporte-recargas?fechaInicio=${inicio}&fechaFin=${fin}`;
-            else if (tipo === 'CONSIGNACIONES') url = `${API_URL}/reporte-consignaciones?fechaInicio=${inicio}&fechaFin=${fin}`;
+    if (!inicio || !fin) return Swal.fire('Atención', 'Selecciona las fechas.', 'warning');
 
-            const res = await fetch(url);
-            const datos = await res.json();
+    const btn = e.submitter;
+    const textoOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    btn.disabled = true;
 
-            if (datos.length === 0) {
-                Swal.fire('Sin datos', 'No hay movimientos en este rango.', 'info');
-                return;
+    try {
+        let url = '';
+        if (tipo === 'RECARGAS') url = `${API_URL}/reporte-recargas?fechaInicio=${inicio}&fechaFin=${fin}`;
+        else if (tipo === 'CONSIGNACIONES') url = `${API_URL}/reporte-consignaciones?fechaInicio=${inicio}&fechaFin=${fin}`;
+
+        const res = await fetch(url);
+        const datos = await res.json();
+
+        if (datos.length === 0) {
+            Swal.fire('Sin datos', 'No hay movimientos en este rango.', 'info');
+            return;
+        }
+
+        const datosExcel = datos.map(item => {
+            let filaCompleta = {};
+
+            if (tipo === 'RECARGAS') {
+                filaCompleta = {
+                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
+                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Nombre Cliente": item.nombre_cajero, // <--- CAMBIO AQUÍ TAMBIÉN
+                    "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
+                    "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
+                    "Titular": item.nombre_titular || '',
+                    "Valor": parseFloat(item.monto)
+                };
+            } else {
+                filaCompleta = {
+                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
+                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Solicitado Por": item.usuario_solicitante,
+                    "Banco / Llave": item.llave_bre_b || '---',
+                    "Titular Cuenta": item.titular_cuenta || '---',
+                    "Ref. Interna": item.referencia_externa,
+                    "Valor": parseFloat(item.monto)
+                };
             }
 
-            // --- MAPEO DE DATOS ---
-            const datosExcel = datos.map(item => {
-                // Generar objeto completo
-                let filaCompleta = {};
-
-                if (tipo === 'RECARGAS') {
-                    filaCompleta = {
-                        "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
-                        "Hora": moment(item.fecha_transaccion).format('HH:mm'),
-                        "Cajero": item.nombre_cajero,
-                        "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
-                        "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
-                        "Titular": item.nombre_titular || '',
-                        "Valor": parseFloat(item.monto)
-                    };
-                } else {
-                    filaCompleta = {
-                        "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
-                        "Hora": moment(item.fecha_transaccion).format('HH:mm'),
-                        "Solicitado Por": item.usuario_solicitante,
-                        "Banco / Llave": item.llave_bre_b || '---',
-                        "Titular Cuenta": item.titular_cuenta || '---',
-                        "Ref. Interna": item.referencia_externa,
-                        "Valor": parseFloat(item.monto)
-                    };
-                }
-
-                // Filtrar solo las columnas elegidas
-                let filaFiltrada = {};
-                columnasSeleccionadas.forEach(key => {
-                    filaFiltrada[key] = filaCompleta[key];
-                });
-
-                return filaFiltrada;
+            // Filtrar solo las columnas elegidas
+            let filaFiltrada = {};
+            columnasSeleccionadas.forEach(key => {
+                filaFiltrada[key] = filaCompleta[key];
             });
 
-            // Crear Excel
-            const worksheet = XLSX.utils.json_to_sheet(datosExcel);
-            const wscols = columnasSeleccionadas.map(() => ({wch: 20}));
-            worksheet['!cols'] = wscols;
+            return filaFiltrada;
+        });
 
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte");
-            XLSX.writeFile(workbook, `Reporte_${tipo}_${inicio}.xlsx`);
+        const worksheet = XLSX.utils.json_to_sheet(datosExcel);
+        const wscols = columnasSeleccionadas.map(() => ({wch: 20}));
+        worksheet['!cols'] = wscols;
 
-            Swal.fire('Éxito', 'Reporte descargado.', 'success');
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte");
+        XLSX.writeFile(workbook, `Reporte_${tipo}_${inicio}.xlsx`);
 
-        } catch (err) {
-            console.error(err);
-            Swal.fire('Error', 'No se pudo generar el reporte. Revisa la consola.', 'error');
-        } finally {
-            btn.innerHTML = textoOriginal;
-            btn.disabled = false;
-        }
+        Swal.fire('Éxito', 'Reporte descargado.', 'success');
+
+    } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
+    } finally {
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
     }
-
+}
