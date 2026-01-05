@@ -1390,7 +1390,7 @@ async function restaurarTransaccion(id) {
         'RECARGAS': [
             { key: 'Fecha', label: 'Fecha' },
             { key: 'Hora', label: 'Hora' },
-            { key: 'Cajero', label: 'Cajero Responsable' },
+            { key: 'Cajero', label: 'Nombre Cliente' },
             { key: 'Plataforma', label: 'Plataforma' },
             { key: 'ID Recarga', label: 'ID / Cédula Recargada' },
             { key: 'Titular', label: 'Nombre Titular' },
