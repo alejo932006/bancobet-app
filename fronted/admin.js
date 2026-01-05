@@ -1445,6 +1445,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // 3. GENERAR EL EXCEL
+// 3. GENERAR EL EXCEL
 async function generarReporte(e) {
     e.preventDefault();
     
@@ -1484,10 +1485,13 @@ async function generarReporte(e) {
                 filaCompleta = {
                     "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
                     "Hora": moment(item.fecha_transaccion).format('HH:mm'),
-                    "Nombre Cliente": item.nombre_cajero, // <--- CAMBIO AQUÍ TAMBIÉN
+                    "Nombre Cliente": item.nombre_cajero,
                     "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
                     "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
-                    "Titular": item.nombre_titular || '',
+                    
+                    // [CORRECCIÓN AQUÍ] Buscamos en ambos campos por seguridad
+                    "Titular": item.nombre_titular || item.nombre_cedula || '---', 
+                    
                     "Valor": parseFloat(item.monto)
                 };
             } else {
