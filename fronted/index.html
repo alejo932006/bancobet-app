@@ -188,7 +188,9 @@
                 <div id="campos-retiro" class="campos-grupo hidden space-y-3">
     
                     <div id="grupo-betplay-retiro" class="space-y-3 animate-fade">
-                        <input type="text" id="cc_casino" placeholder="C.C registrada en Casino" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
+                        <input type="tel" id="cc_casino" placeholder="C.C registrada en Casino" 
+                               class="w-full p-3 border rounded focus:border-blue-500 outline-none" 
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                         <input type="text" id="nombre_cedula" placeholder="Nombre del titular" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
                         <input type="number" id="pin_retiro" placeholder="PIN de Retiro" class="w-full p-3 border rounded focus:border-blue-500 outline-none">
                     </div>
