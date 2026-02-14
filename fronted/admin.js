@@ -1552,3 +1552,61 @@ async function generarReporte(e) {
         btn.disabled = false;
     }
 }
+
+// --- RESETEAR SALDO KAIRO A 0 AUTOMÁTICAMENTE ---
+async function resetearSaldoKairo() {
+    const confirm = await Swal.fire({
+        title: '¿Poner Kairoplay en $0?',
+        text: "Esto calibrará internamente el saldo a $0 sin afectar el historial de movimientos ni el dinero de los clientes.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#9333ea', // Morado Kairo
+        confirmButtonText: 'Sí, poner en $0',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (confirm.isConfirmed) {
+        try {
+            // 1. Obtener el resumen global sin filtros de fecha para conocer el saldo real acumulado
+            const resResumen = await fetch(`${API_URL}/resumen`);
+            const dataResumen = await resResumen.json();
+            const saldoActual = parseFloat(dataResumen.kairo.saldo) || 0;
+
+            if (saldoActual === 0) {
+                return Swal.fire('Información', 'El saldo ya se encuentra en $0.', 'info');
+            }
+
+            // 2. Obtener el valor de ajuste manual que está guardado actualmente en la base de datos
+            const resAjuste = await fetch(`${API_URL}/../admin/config-kairo`);
+            const dataAjuste = await resAjuste.json();
+            const ajusteActual = parseFloat(dataAjuste.valor) || 0;
+
+            // 3. Matemática del reseteo:
+            // Sabemos que: Saldo_Final = Saldo_Base + Ajuste_Actual
+            // Queremos que el Saldo_Final sea 0. Por lo tanto, el Nuevo_Ajuste debe ser la diferencia.
+            const nuevoAjuste = ajusteActual - saldoActual;
+
+            // 4. Guardar el nuevo ajuste exacto usando el endpoint existente
+            const resGuardar = await fetch(`${API_URL}/../admin/config-kairo`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ajuste: nuevoAjuste })
+            });
+
+            if (resGuardar.ok) {
+                Swal.fire('Éxito', 'El saldo global de Kairoplay se ha calibrado en $0 correctamente.', 'success');
+                
+                // Recargar el dashboard para reflejar el 0 visualmente
+                cargarResumen(); 
+                
+                // Si la vista de configuración está abierta, actualizamos el input allí también
+                cargarAjusteKairo(); 
+            } else {
+                Swal.fire('Error', 'No se pudo aplicar la calibración en el servidor.', 'error');
+            }
+        } catch (e) {
+            console.error("Error al resetear Kairo:", e);
+            Swal.fire('Error', 'Fallo de conexión. Inténtalo de nuevo.', 'error');
+        }
+    }
+}
