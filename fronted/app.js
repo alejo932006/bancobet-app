@@ -820,6 +820,10 @@ id referencia: ${idTx}`;
                             resetearVista(); 
                             sincronizarDatosUsuario(); 
                             cambiarVista('historial');
+                            
+                            // ✅ SOLUCIÓN 1: Reactivamos el botón SOLO cuando todo terminó exitosamente
+                            btn.disabled = false; 
+                            btn.innerText = "Confirmar Operación";
                         } else {
                             // Si dice que NO, lo mandamos de vuelta al bucle
                             obligarEnvio();
@@ -834,6 +838,10 @@ id referencia: ${idTx}`;
                 // Caso raro donde no haya número configurado
                 Swal.fire('Éxito', 'Operación registrada correctamente', 'success');
                 UI.form.reset(); resetearVista(); sincronizarDatosUsuario(); cambiarVista('historial');
+                
+                // ✅ SOLUCIÓN 2: Reactivamos el botón aquí también
+                btn.disabled = false; 
+                btn.innerText = "Confirmar Operación";
             }
         }
         else {
@@ -853,14 +861,19 @@ id referencia: ${idTx}`;
                     confirmButtonColor: '#d33'
                 });
             }
+            // ✅ SOLUCIÓN 3: Reactivamos el botón si el servidor devolvió un error (ej. saldo insuficiente)
+            btn.disabled = false; 
+            btn.innerText = "Confirmar Operación";
         }
     } catch(e) { 
         console.error(e);
         Swal.fire({ icon: 'warning', title: 'Sin conexión', text: 'No pudimos conectar con el servidor.' });
+        // ✅ SOLUCIÓN 4: Reactivamos el botón si hubo un error de red
+        btn.disabled = false; 
+        btn.innerText = "Confirmar Operación";
     }
     
-    btn.disabled = false; 
-    btn.innerText = "Confirmar Operación";
+    // ❌ ELIMINADO: Las dos líneas que estaban aquí afuera sueltas y causaban el problema.
 }
 
 // [NUEVO] Función para volver al estado inicial (Solo botones)

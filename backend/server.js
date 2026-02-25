@@ -198,6 +198,11 @@ app.post('/api/transaccion', upload.single('comprobante_archivo'), async (req, r
     try {
         await client.query('BEGIN');
         const data = req.body;
+        // ✅ NUEVA VALIDACIÓN: Bloquear duplicados
+        const checkDuplicado = await client.query('SELECT id FROM transacciones WHERE referencia_externa = $1', [data.id_transaccion]);
+        if (checkDuplicado.rows.length > 0) {
+            throw new Error("Esta transacción ya fue procesada (Duplicada).");
+        }
         const file = req.file;
 
         // [CORRECCIÓN DEL ERROR] 
@@ -338,10 +343,7 @@ app.get('/api/admin/resumen', async (req, res) => {
             filtroFecha = " AND fecha_transaccion::date BETWEEN $1 AND $2";
             params.push(fechaInicio, fechaFin);
         }
-        const ajusteRes = await pool.query("SELECT valor FROM configuracion_global WHERE clave = 'kairo_ajuste_saldo'");
-        const ajusteKairo = parseFloat(ajusteRes.rows.length > 0 ? ajusteRes.rows[0].valor : 0);
-        const pagosExternosRes = await pool.query("SELECT SUM(monto) as total FROM pagos_kairo_externos");
-        const totalPagosKairo = parseFloat(pagosExternosRes.rows[0].total || 0);
+        
         const saldoRealRes = await pool.query("SELECT SUM(saldo_actual) as total FROM usuarios WHERE rol = 'cliente'");
         let totalBancoReal = parseFloat(saldoRealRes.rows[0].total || 0);
 
@@ -362,6 +364,31 @@ app.get('/api/admin/resumen', async (req, res) => {
         const desglose = {};
         operaciones.rows.forEach(op => { desglose[op.tipo_operacion] = op.total || 0; });
 
+        // ==========================================
+        // --- CÁLCULO KAIROPLAY CORREGIDO ---
+        // ==========================================
+        const ajusteRes = await pool.query("SELECT valor FROM configuracion_global WHERE clave = 'kairo_ajuste_saldo'");
+        const ajusteKairo = parseFloat(ajusteRes.rows.length > 0 ? ajusteRes.rows[0].valor : 0);
+        
+        const pagosExternosRes = await pool.query("SELECT SUM(monto) as total FROM pagos_kairo_externos");
+        const totalPagosKairo = parseFloat(pagosExternosRes.rows[0].total || 0);
+
+        // 1. SALDO GLOBAL (Siempre calcula el historial completo para que el reseteo a 0 funcione)
+        const kairoGlobal = await pool.query(`
+            SELECT tipo_operacion, SUM(monto) as total
+            FROM transacciones
+            WHERE estado = 'APROBADO' AND cc_casino = 'KAIROPLAY'
+            GROUP BY tipo_operacion
+        `);
+        
+        let kRecargasGlobal = 0; let kRetirosGlobal = 0;
+        kairoGlobal.rows.forEach(row => {
+            if (row.tipo_operacion === 'RETIRO') kRetirosGlobal = parseFloat(row.total);
+            if (row.tipo_operacion === 'RECARGA') kRecargasGlobal = parseFloat(row.total);
+        });
+        const saldoKairoReal = (kRecargasGlobal - kRetirosGlobal) + ajusteKairo - totalPagosKairo;
+
+        // 2. ENTRADAS Y SALIDAS FILTRADAS (Respeta la fecha para mostrar la actividad del día)
         const kairoStats = await pool.query(`
             SELECT tipo_operacion, SUM(monto) as total
             FROM transacciones
@@ -375,7 +402,9 @@ app.get('/api/admin/resumen', async (req, res) => {
             if (row.tipo_operacion === 'RECARGA') kRecargas = parseFloat(row.total);
         });
 
-        // --- CÁLCULO 5: RESUMEN BETPLAY ---
+        // ==========================================
+        // --- CÁLCULO BETPLAY ---
+        // ==========================================
         const betplayStats = await pool.query(`
             SELECT 
                 tipo_operacion, 
@@ -404,13 +433,11 @@ app.get('/api/admin/resumen', async (req, res) => {
             totalGanancias: comisiones.rows[0].total || 0,
             desgloseOperaciones: desglose,
             
-            // KAIROPLAY MODIFICADO
             kairo: {
                 retiros: kRetiros, 
                 recargas: kRecargas, 
-                pagos_externos: totalPagosKairo, // Opcional: para mostrarlo si quieres
-                // FÓRMULA ACTUALIZADA: (Recargas - Retiros) + Ajuste - PAGOS EXTERNOS
-                saldo: (kRecargas - kRetiros) + ajusteKairo - totalPagosKairo
+                pagos_externos: totalPagosKairo, 
+                saldo: saldoKairoReal // <--- AHORA EL SALDO SIEMPRE ES GLOBAL Y PRECISO
             },
             
             betplay: {
