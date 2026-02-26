@@ -287,7 +287,15 @@
         <div id="vista-movimientos" class="vista-seccion hidden animate-fade">
             <div class="flex justify-between items-center mb-4 md:mb-6">
                 <h2 class="text-xl md:text-2xl font-bold text-gray-800">Monitor Global</h2>
-                <button onclick="cargarMovimientosGlobales()" class="text-blue-600 hover:underline text-sm bg-white px-3 py-1 rounded shadow-sm"><i class="fas fa-sync-alt mr-1"></i> <span class="hidden md:inline">Refrescar</span></button>
+                
+                <div class="flex items-center gap-2">
+                    <button onclick="escanearDuplicados()" class="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 px-3 py-1 rounded shadow-sm text-sm font-bold transition flex items-center">
+                        <i class="fas fa-search-dollar mr-1"></i> <span class="hidden md:inline">Escanear Duplicados</span>
+                    </button>
+                    <button onclick="cargarMovimientosGlobales()" class="text-blue-600 hover:underline text-sm bg-white px-3 py-1 rounded shadow-sm">
+                        <i class="fas fa-sync-alt mr-1"></i> <span class="hidden md:inline">Refrescar</span>
+                    </button>
+                </div>
             </div>
 
             <!-- FILTROS RESPONSIVOS -->

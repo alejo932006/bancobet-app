@@ -1518,22 +1518,25 @@ async function generarReporte(e) {
         const datosExcel = datos.map(item => {
             let filaCompleta = {};
 
+            // 1. Ajustamos la fecha y hora restando 5 horas (Hora local Colombia)
+            const fechaAjustada = moment(item.fecha_transaccion).subtract(5, 'hours');
+
             if (tipo === 'RECARGAS') {
                 filaCompleta = {
                     "ID": item.id,                                   
                     "Referencia": item.referencia_externa || '---',  
-                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
-                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Fecha": fechaAjustada.format('YYYY-MM-DD'), // <--- Usa la fecha ajustada
+                    "Hora": fechaAjustada.format('HH:mm'),       // <--- Usa la hora ajustada
                     "Nombre Cliente": item.nombre_cajero,
                     "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
                     "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
                     "Titular": item.nombre_titular || item.nombre_cedula || '---', 
                     "Valor": parseFloat(item.monto)
                 };
-            } else if (tipo === 'CONSIGNACIONES') { // <--- ESTE DEBE SER 'else if'
+            } else if (tipo === 'CONSIGNACIONES') {
                 filaCompleta = {
-                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
-                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Fecha": fechaAjustada.format('YYYY-MM-DD'), // <--- Usa la fecha ajustada
+                    "Hora": fechaAjustada.format('HH:mm'),       // <--- Usa la hora ajustada
                     "Solicitado Por": item.usuario_solicitante,
                     "Banco / Llave": item.llave_bre_b || '---',
                     "Titular Cuenta": item.titular_cuenta || '---',
@@ -1542,26 +1545,22 @@ async function generarReporte(e) {
                 };
             } else if (tipo === 'TODAS') {
                 
-                // 1. Determinamos la plataforma de forma inteligente
                 let plataformaReal = '---';
                 if (item.tipo_operacion === 'RECARGA' || item.tipo_operacion === 'RETIRO') {
-                    // Si es recarga o retiro, y no es Kairoplay explícitamente, asume Betplay.
                     plataformaReal = (item.cc_casino === 'KAIROPLAY') ? 'Kairoplay' : 'Betplay';
                 }
 
-                // 2. Armamos la fila
                 filaCompleta = {
                     "ID": item.id,
                     "Referencia": item.referencia_externa || '---',
-                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
-                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Fecha": fechaAjustada.format('YYYY-MM-DD'), // <--- Usa la fecha ajustada
+                    "Hora": fechaAjustada.format('HH:mm'),       // <--- Usa la hora ajustada
                     "Cliente": item.nombre_cliente,
                     "Operacion": item.tipo_operacion.replace(/_/g, ' '),
-                    "Plataforma": plataformaReal, // <--- Aquí usamos la variable que acabamos de crear
+                    "Plataforma": plataformaReal,
                     "Valor Bruto": parseFloat(item.monto),
                     "Comision": parseFloat(item.comision || 0),
                     "Valor Neto": parseFloat(item.monto) - parseFloat(item.comision || 0),
-                    // Concatena cualquier detalle relevante (cedula a recargar, pin, cuenta, etc)
                     "Detalle": [item.pin_retiro, item.cedula_destino, item.llave_bre_b, item.titular_cuenta].filter(Boolean).join(' - ') || '---'
                 };
             }
@@ -1656,5 +1655,115 @@ async function resetearSaldoKairo() {
             console.error("Error al resetear Kairo:", e);
             Swal.fire('Error', 'Fallo de conexión.', 'error');
         }
+    }
+}
+
+// ==========================================
+// ESCANEO Y GESTIÓN DE DUPLICADOS
+// ==========================================
+
+async function escanearDuplicados() {
+    Swal.fire({ title: 'Escaneando sistema...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+    
+    try {
+        const res = await fetch(`${API_URL}/duplicados`);
+        const duplicados = await res.json();
+        
+        if (duplicados.length === 0) {
+            return Swal.fire('Todo limpio', 'No se encontraron transacciones duplicadas en el sistema.', 'success');
+        }
+        
+        // Construimos una tabla HTML para el SweetAlert
+        let html = `
+            <div class="bg-yellow-50 text-yellow-800 p-3 rounded text-sm mb-4 border border-yellow-200 text-left">
+                <i class="fas fa-exclamation-triangle mr-2"></i> Se encontraron <strong>${duplicados.length}</strong> operaciones con la misma referencia. Revisa y anula la que consideres copia.
+            </div>
+            <div class="overflow-x-auto max-h-[50vh] border rounded-lg">
+                <table class="w-full text-xs text-left whitespace-nowrap">
+                    <thead class="bg-gray-100 sticky top-0 shadow-sm">
+                        <tr>
+                            <th class="p-2">ID</th>
+                            <th class="p-2">Fecha</th>
+                            <th class="p-2">Cliente</th>
+                            <th class="p-2">Monto</th>
+                            <th class="p-2 text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+        `;
+        
+        duplicados.forEach(tx => {
+            const fecha = moment(tx.fecha_transaccion).format('DD/MM HH:mm');
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tx.monto);
+            
+            html += `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-2 font-bold text-gray-700">${tx.id}</td>
+                    <td class="p-2 text-gray-500">${fecha}</td>
+                    <td class="p-2 text-gray-800">
+                        ${tx.nombre_completo} <br>
+                        <span class="text-[10px] text-gray-400">Ref: ${tx.referencia_externa}</span>
+                    </td>
+                    <td class="p-2 font-mono font-bold text-blue-600">${monto}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="reversarDuplicado(${tx.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-bold transition shadow-sm">
+                            <i class="fas fa-undo mr-1"></i> Anular
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+        Swal.fire({
+            title: 'Resultados del Escaneo',
+            html: html,
+            width: '800px',
+            showCloseButton: true,
+            showConfirmButton: false
+        });
+        
+    } catch(e) {
+        Swal.fire('Error', 'Fallo al escanear la base de datos', 'error');
+    }
+}
+
+async function reversarDuplicado(id) {
+    const res = await Swal.fire({
+        title: '¿Anular este registro?',
+        text: `Se reversará la transacción ID ${id} y el saldo del cliente será ajustado automáticamente.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Sí, anular',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if(res.isConfirmed) {
+        // Muestra cargando para que no hagan doble clic
+        Swal.fire({ title: 'Reversando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+        
+        try {
+            // Usamos tu endpoint original de reversar (que maneja comisiones y saldos perfecto)
+            const req = await fetch(`${API_URL}/transacciones/${id}`, { method: 'DELETE' });
+            const data = await req.json();
+            
+            if(data.success) {
+                Swal.fire('Anulado', 'La transacción duplicada fue reversada correctamente.', 'success').then(() => {
+                    // Refrescamos la tabla global del fondo
+                    if(!document.getElementById('vista-movimientos').classList.contains('hidden')) {
+                        cargarMovimientosGlobales();
+                    }
+                    // Volvemos a abrir el escáner para que el admin vea si quedan más
+                    escanearDuplicados(); 
+                });
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo reversar', 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'Fallo de conexión', 'error');
+        }
+    } else {
+        // Si cancela, volvemos a abrir la ventana de duplicados para que no se pierda la lista
+        escanearDuplicados();
     }
 }

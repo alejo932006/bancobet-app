@@ -1336,4 +1336,31 @@ app.get('/api/admin/reporte-todas', async (req, res) => {
     }
 });
 
+// [NUEVO] ESCANEAR DUPLICADOS
+app.get('/api/admin/duplicados', async (req, res) => {
+    try {
+        // Busca transacciones aprobadas que compartan la misma referencia externa
+        const query = `
+            SELECT t.*, u.nombre_completo, u.cedula 
+            FROM transacciones t
+            JOIN usuarios u ON t.usuario_id = u.id
+            WHERE t.referencia_externa IN (
+                SELECT referencia_externa 
+                FROM transacciones 
+                WHERE referencia_externa IS NOT NULL 
+                  AND referencia_externa != '' 
+                  AND estado = 'APROBADO'
+                GROUP BY referencia_externa 
+                HAVING COUNT(id) > 1
+            )
+            AND t.estado = 'APROBADO'
+            ORDER BY t.referencia_externa, t.id ASC;
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });
