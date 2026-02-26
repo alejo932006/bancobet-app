@@ -1406,6 +1406,20 @@ const DEFINICION_REPORTES = {
         { key: 'Titular Cuenta', label: 'Titular Cuenta' },
         { key: 'Ref. Interna', label: 'Referencia Interna' },
         { key: 'Valor', label: 'Valor ($)' }
+    ],
+    // NUEVO REPORTE GENERAL
+    'TODAS': [
+        { key: 'ID', label: 'ID Tx' },
+        { key: 'Referencia', label: 'Referencia' },
+        { key: 'Fecha', label: 'Fecha' },
+        { key: 'Hora', label: 'Hora' },
+        { key: 'Cliente', label: 'Cliente' },
+        { key: 'Operacion', label: 'Tipo Operación' },
+        { key: 'Plataforma', label: 'Plataforma' },
+        { key: 'Valor Bruto', label: 'Valor Bruto ($)' },
+        { key: 'Comision', label: 'Comisión ($)' },
+        { key: 'Valor Neto', label: 'Valor Neto ($)' },
+        { key: 'Detalle', label: 'Detalles Extra' }
     ]
 };
 
@@ -1435,7 +1449,8 @@ function renderizarOpcionesColumnas() {
 document.getElementById('tipo-reporte').addEventListener('change', (e) => {
     const contenedor = document.getElementById('contenedor-plataforma');
     if(contenedor) {
-        if(e.target.value === 'RECARGAS') contenedor.classList.remove('hidden');
+        // [MODIFICADO] Mostrar filtro de plataforma para RECARGAS o TODAS
+        if(e.target.value === 'RECARGAS' || e.target.value === 'TODAS') contenedor.classList.remove('hidden');
         else contenedor.classList.add('hidden');
     }
 });
@@ -1487,6 +1502,11 @@ async function generarReporte(e) {
             url = `${API_URL}/reporte-consignaciones?fechaInicio=${inicio}&fechaFin=${fin}`;
         }
 
+        else if (tipo === 'TODAS') {
+            // [NUEVO] Endpoint para reporte completo
+            url = `${API_URL}/reporte-todas?fechaInicio=${inicio}&fechaFin=${fin}&plataforma=${plataforma}`;
+        }
+
         const res = await fetch(url);
         const datos = await res.json();
 
@@ -1500,20 +1520,17 @@ async function generarReporte(e) {
 
             if (tipo === 'RECARGAS') {
                 filaCompleta = {
-                    "ID": item.id,                                   // <--- NUEVO
-                    "Referencia": item.referencia_externa || '---',  // <--- NUEVO
+                    "ID": item.id,                                   
+                    "Referencia": item.referencia_externa || '---',  
                     "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
                     "Hora": moment(item.fecha_transaccion).format('HH:mm'),
                     "Nombre Cliente": item.nombre_cajero,
                     "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : 'Betplay',
                     "ID Recarga": item.cc_casino === 'KAIROPLAY' ? item.pin_retiro : (item.cedula_destino || item.pin_retiro),
-                    
-                    // Incluye la corrección anterior del titular:
                     "Titular": item.nombre_titular || item.nombre_cedula || '---', 
-                    
                     "Valor": parseFloat(item.monto)
                 };
-            } else {
+            } else if (tipo === 'CONSIGNACIONES') { // <--- ESTE DEBE SER 'else if'
                 filaCompleta = {
                     "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
                     "Hora": moment(item.fecha_transaccion).format('HH:mm'),
@@ -1522,6 +1539,21 @@ async function generarReporte(e) {
                     "Titular Cuenta": item.titular_cuenta || '---',
                     "Ref. Interna": item.referencia_externa,
                     "Valor": parseFloat(item.monto)
+                };
+            } else if (tipo === 'TODAS') { // <--- EL NUEVO REPORTE
+                filaCompleta = {
+                    "ID": item.id,
+                    "Referencia": item.referencia_externa || '---',
+                    "Fecha": moment(item.fecha_transaccion).format('YYYY-MM-DD'),
+                    "Hora": moment(item.fecha_transaccion).format('HH:mm'),
+                    "Cliente": item.nombre_cliente,
+                    "Operacion": item.tipo_operacion.replace(/_/g, ' '),
+                    "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : (item.cc_casino ? 'Betplay' : '---'),
+                    "Valor Bruto": parseFloat(item.monto),
+                    "Comision": parseFloat(item.comision || 0),
+                    "Valor Neto": parseFloat(item.monto) - parseFloat(item.comision || 0),
+                    // Concatena cualquier detalle relevante (cedula a recargar, pin, cuenta, etc)
+                    "Detalle": [item.pin_retiro, item.cedula_destino, item.llave_bre_b, item.titular_cuenta].filter(Boolean).join(' - ') || '---'
                 };
             }
 

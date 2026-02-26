@@ -1300,4 +1300,40 @@ app.get('/api/admin/reporte-consignaciones', async (req, res) => {
     }
 });
 
+// [NUEVO] REPORTE DE TODAS LAS OPERACIONES (EXCEL)
+app.get('/api/admin/reporte-todas', async (req, res) => {
+    const { fechaInicio, fechaFin, plataforma } = req.query;
+    
+    if (!fechaInicio || !fechaFin) {
+        return res.status(400).json({ error: "Faltan fechas" });
+    }
+
+    try {
+        let query = `
+            SELECT 
+                t.*,
+                u.nombre_completo as nombre_cliente
+            FROM transacciones t
+            JOIN usuarios u ON t.usuario_id = u.id
+            WHERE t.estado = 'APROBADO'
+            AND (t.fecha_transaccion - INTERVAL '5 hours')::date BETWEEN $1 AND $2
+        `;
+        
+        // Agregar filtro de plataforma si aplica
+        if (plataforma === 'KAIROPLAY') {
+            query += " AND t.cc_casino = 'KAIROPLAY'";
+        } else if (plataforma === 'BETPLAY') {
+            query += " AND (t.cc_casino != 'KAIROPLAY' OR t.cc_casino IS NULL)";
+        }
+
+        query += " ORDER BY t.fecha_transaccion ASC";
+        
+        const result = await pool.query(query, [fechaInicio, fechaFin]);
+        res.json(result.rows);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });
