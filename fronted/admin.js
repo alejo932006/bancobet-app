@@ -1540,7 +1540,16 @@ async function generarReporte(e) {
                     "Ref. Interna": item.referencia_externa,
                     "Valor": parseFloat(item.monto)
                 };
-            } else if (tipo === 'TODAS') { // <--- EL NUEVO REPORTE
+            } else if (tipo === 'TODAS') {
+                
+                // 1. Determinamos la plataforma de forma inteligente
+                let plataformaReal = '---';
+                if (item.tipo_operacion === 'RECARGA' || item.tipo_operacion === 'RETIRO') {
+                    // Si es recarga o retiro, y no es Kairoplay explícitamente, asume Betplay.
+                    plataformaReal = (item.cc_casino === 'KAIROPLAY') ? 'Kairoplay' : 'Betplay';
+                }
+
+                // 2. Armamos la fila
                 filaCompleta = {
                     "ID": item.id,
                     "Referencia": item.referencia_externa || '---',
@@ -1548,7 +1557,7 @@ async function generarReporte(e) {
                     "Hora": moment(item.fecha_transaccion).format('HH:mm'),
                     "Cliente": item.nombre_cliente,
                     "Operacion": item.tipo_operacion.replace(/_/g, ' '),
-                    "Plataforma": item.cc_casino === 'KAIROPLAY' ? 'Kairoplay' : (item.cc_casino ? 'Betplay' : '---'),
+                    "Plataforma": plataformaReal, // <--- Aquí usamos la variable que acabamos de crear
                     "Valor Bruto": parseFloat(item.monto),
                     "Comision": parseFloat(item.comision || 0),
                     "Valor Neto": parseFloat(item.monto) - parseFloat(item.comision || 0),
