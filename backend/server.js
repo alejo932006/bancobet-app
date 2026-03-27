@@ -671,7 +671,7 @@ app.delete('/api/admin/transacciones/:id', async (req, res) => {
         await client.query('BEGIN');
         
         // 1. Obtener la transacción original
-        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1', [id]);
+        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1 FOR UPDATE', [id]);
         if (txRes.rows.length === 0) throw new Error("Transacción no encontrada");
         
         const tx = txRes.rows[0]; 
@@ -894,7 +894,7 @@ app.put('/api/admin/transacciones/:id/monto', async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Obtener la transacción original
-        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1', [id]);
+        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1 FOR UPDATE', [id]);
         if (txRes.rows.length === 0) throw new Error("Transacción no encontrada");
         
         const tx = txRes.rows[0];
@@ -1050,7 +1050,7 @@ app.post('/api/admin/transacciones/:id/restaurar', async (req, res) => {
         await client.query('BEGIN');
         
         // 1. Obtener la transacción que queremos restaurar
-        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1', [id]);
+        const txRes = await client.query('SELECT * FROM transacciones WHERE id = $1 FOR UPDATE', [id]);
         if (txRes.rows.length === 0) throw new Error("Transacción no encontrada");
         const tx = txRes.rows[0];
 
@@ -1360,6 +1360,63 @@ app.get('/api/admin/duplicados', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// [NUEVO] AUDITORÍA COMPLETA (Ruta pública temporal para ver en navegador)
+app.get('/api/auditoria-completa', async (req, res) => {
+    try {
+        console.log("Iniciando auditoría completa de todos los clientes...");
+        
+        // 1. Obtenemos a TODOS los clientes de una vez
+        const usuariosRes = await pool.query("SELECT id, nombre_completo, cedula, saldo_actual FROM usuarios WHERE rol = 'cliente' ORDER BY nombre_completo ASC");
+        const usuarios = usuariosRes.rows;
+        const inconsistencias = [];
+
+        // 2. Revisamos el historial uno por uno
+        for (let u of usuarios) {
+            const txRes = await pool.query(`
+                SELECT SUM(
+                    CASE 
+                        WHEN estado = 'REVERSADO' THEN 0
+                        WHEN tipo_operacion IN ('RETIRO', 'ABONO_CAJA', 'ABONO_TRASLADO') THEN (monto - COALESCE(comision, 0))
+                        WHEN tipo_operacion IN ('RECARGA', 'CONSIGNACION', 'TRASLADO', 'DESCUENTO') THEN -(monto - COALESCE(comision, 0))
+                        ELSE 0
+                    END
+                ) as saldo_calculado
+                FROM transacciones
+                WHERE usuario_id = $1
+            `, [u.id]);
+            
+            const saldoCalculado = parseFloat(txRes.rows[0].saldo_calculado || 0);
+            const saldoActual = parseFloat(u.saldo_actual || 0);
+
+            // Si el saldo no cuadra, lo guardamos en la lista
+            if (saldoActual !== saldoCalculado) {
+                inconsistencias.push({
+                    id: u.id,
+                    nombre: u.nombre_completo,
+                    cedula: u.cedula,
+                    saldo_actual: saldoActual,
+                    saldo_calculado: saldoCalculado,
+                    diferencia: saldoActual - saldoCalculado
+                });
+            }
+        }
+        
+        console.log(`Auditoría finalizada. ${inconsistencias.length} inconsistencias encontradas.`);
+        
+        // Entregamos el resultado total
+        res.json({ 
+            success: true, 
+            total_clientes_analizados: usuarios.length,
+            clientes_con_descuadre: inconsistencias.length,
+            inconsistencias: inconsistencias
+        });
+        
+    } catch (error) {
+        console.error("Error en auditoría:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
