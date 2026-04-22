@@ -848,7 +848,12 @@ id referencia: ${idTx}`;
                             UI.form.reset(); 
                             resetearVista(); 
                             sincronizarDatosUsuario(); 
-                            cambiarVista('historial');
+
+                            if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+                                cambiarVista('operar'); // Lo dejamos en la ventana de recargar
+                            } else {
+                                cambiarVista('historial'); // A los demás sí los mandamos al historial
+                            }
                             
                             // ✅ SOLUCIÓN 1: Reactivamos el botón SOLO cuando todo terminó exitosamente
                             btn.disabled = false; 
@@ -866,7 +871,18 @@ id referencia: ${idTx}`;
             } else {
                 // Caso raro donde no haya número configurado
                 Swal.fire('Éxito', 'Operación registrada correctamente', 'success');
-                UI.form.reset(); resetearVista(); sincronizarDatosUsuario(); cambiarVista('historial');
+                
+                UI.form.reset(); 
+                resetearVista(); 
+                sincronizarDatosUsuario(); 
+                
+                // --- INICIO CAMBIO: Verificamos a dónde mandarlo ---
+                if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+                    cambiarVista('operar'); // Se queda en la recarga
+                } else {
+                    cambiarVista('historial'); // Se va al historial
+                }
+                // --- FIN CAMBIO ---
                 
                 // ✅ SOLUCIÓN 2: Reactivamos el botón aquí también
                 btn.disabled = false; 
