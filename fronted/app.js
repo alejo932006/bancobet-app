@@ -131,7 +131,22 @@ async function sincronizarDatosUsuario() {
 
 function actualizarUIUsuario(u) {
     document.getElementById('userNombre').innerHTML = `<i class="fas fa-user mr-2"></i>${u.nombre_completo.split(' ')[0]}`;
-    document.getElementById('userSaldo').innerText = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(u.saldo_actual);
+    
+    if (u.rol === 'cliente_especial') {
+        // Ocultar saldo y accesos directos
+        document.getElementById('userSaldo').parentElement.style.display = 'none';
+        document.getElementById('panel-accesos-rapidos').style.display = 'none';
+        document.getElementById('btn-nav-historial').style.display = 'none'; // Opcional: Ocultar historial si no lo necesitan ver
+        
+        // Forzar vista de recarga Betplay
+        UI.selectOperacion.value = 'RECARGA';
+        actualizarFormulario();
+        document.getElementById('selector_casino').value = 'BETPLAY';
+        document.getElementById('selector_casino').disabled = true;
+        document.getElementById('tipoOperacion').disabled = true;
+    } else {
+        document.getElementById('userSaldo').innerText = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(u.saldo_actual);
+    }
 }
 
 UI.selectOperacion.addEventListener('change', actualizarFormulario);
@@ -653,10 +668,24 @@ async function procesarTransaccion(e) {
     const btn = UI.form.querySelector('button'); btn.disabled=true; btn.innerText="Procesando...";
     
     try {
-        const res = await fetch(`${CONFIG.apiURL}/transaccion`, { method: 'POST', body: formData });
+        // --- INICIO CÓDIGO NUEVO ---
+        let urlTransaccion = `${CONFIG.apiURL}/transaccion`;
+        let fetchOptions = { method: 'POST', body: formData };
+
+        // Convertimos a JSON solo si es cliente especial
+        if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+            urlTransaccion = `${CONFIG.apiURL}/transaccion-especial`;
+            const obj = {};
+            formData.forEach((value, key) => obj[key] = value);
+            fetchOptions.body = JSON.stringify(obj);
+            fetchOptions.headers = { 'Content-Type': 'application/json' };
+        }
+
+        const res = await fetch(urlTransaccion, fetchOptions);
         const data = await res.json();
+        // --- FIN CÓDIGO NUEVO ---
         
-        if(data.success) { 
+        if(data.success) {
             const tipo = UI.selectOperacion.value;
             const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(document.getElementById('monto').value);
             const idTx = document.getElementById('id_transaccion').value;

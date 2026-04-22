@@ -1420,4 +1420,68 @@ app.get('/api/auditoria-completa', async (req, res) => {
     }
 });
 
+// ==========================================
+// MÓDULO CLIENTES ESPECIALES (SOLO RECARGAS)
+// ==========================================
+
+// 1. Recibir la transacción especial (No afecta saldo de la tabla usuarios)
+app.post('/api/transaccion-especial', async (req, res) => {
+    const data = req.body;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // Validar duplicados
+        const check = await client.query('SELECT id FROM transacciones_especiales WHERE referencia_externa = $1', [data.id_transaccion]);
+        if (check.rows.length > 0) throw new Error("Transacción duplicada.");
+
+        // Guardar directamente en la tabla aislada (Sin actualizar saldos)
+        await client.query(
+            `INSERT INTO transacciones_especiales (usuario_id, cedula_recarga, nombre_titular, monto, referencia_externa) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [data.usuario_id, data.cedula_recarga, data.nombre_titular, data.monto, data.id_transaccion]
+        );
+
+        await client.query('COMMIT');
+        
+        const configRes = await pool.query("SELECT numero_telefono FROM configuracion_whatsapp WHERE tipo_operacion = 'ESPECIAL'");
+        const numeroWhatsapp = configRes.rows.length > 0 ? configRes.rows[0].numero_telefono : null;
+
+        res.json({ 
+            success: true, 
+            message: "Recarga registrada correctamente.",
+            whatsapp_destino: numeroWhatsapp
+        });
+        
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
+// 2. Obtener historial para el Panel Admin
+app.get('/api/admin/transacciones-especiales', async (req, res) => {
+    const { fechaInicio, fechaFin } = req.query;
+    let query = `
+        SELECT t.*, u.nombre_completo, u.cedula as cedula_agente 
+        FROM transacciones_especiales t 
+        JOIN usuarios u ON t.usuario_id = u.id 
+        WHERE 1=1
+    `;
+    const params = [];
+    if (fechaInicio && fechaFin) {
+        query += ` AND (t.fecha_transaccion - INTERVAL '5 hours')::date BETWEEN $1 AND $2`;
+        params.push(fechaInicio, fechaFin);
+    }
+    query += ` ORDER BY t.fecha_transaccion DESC`;
+    
+    try {
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });

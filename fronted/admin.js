@@ -102,6 +102,7 @@ function cargarVista(vista) {
     if (vista === 'reportes') {
         renderizarOpcionesColumnas(); // <--- ESTO HACE QUE APAREZCAN LAS OPCIONES
     }
+    if (vista === 'especiales') cargarTransaccionesEspeciales();
 }
 
 // [NUEVO] Función para cerrar sesión explícitamente
@@ -401,6 +402,7 @@ async function abrirModalUsuario() {
                             <select id="swal-rol" class="w-full px-3 py-2 rounded border border-gray-300 focus:border-blue-500 outline-none bg-white">
                                 <option value="cliente">Cliente</option>
                                 <option value="admin">Administrador</option>
+                                <option value="cliente_especial">⭐ Cliente Especial (Solo Recargas Aisladas)</option>
                             </select>
                         </div>
                     </div>
@@ -688,6 +690,7 @@ async function editarUsuario(id) {
                             <select id="edit-rol" class="w-full px-3 py-2 rounded border border-gray-300 focus:border-blue-500 outline-none bg-white">
                                 <option value="cliente" ${u.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
                                 <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                                <option value="cliente_especial">⭐ Cliente Especial (Solo Recargas Aisladas)</option>
                             </select>
                         </div>
                         <div>
@@ -792,6 +795,7 @@ async function cargarConfigWhatsapp() {
         // Asignamos el mismo de abonos a los otros por simplicidad inicial
         setVal('conf-TRASLADO', data.TRASLADO || data.ABONO_CAJA);
         setVal('conf-CONSIGNACION', data.CONSIGNACION || data.ABONO_CAJA);
+        setVal('conf-ESPECIAL', data.ESPECIAL);
     } catch (e) { console.error(e); }
 }
 
@@ -802,7 +806,8 @@ async function guardarConfigWhatsapp(e) {
         RECARGA: document.getElementById('conf-RECARGA').value,
         ABONO_CAJA: document.getElementById('conf-ABONO_CAJA').value,
         TRASLADO: document.getElementById('conf-ABONO_CAJA').value, // Reutilizamos
-        CONSIGNACION: document.getElementById('conf-ABONO_CAJA').value // Reutilizamos
+        CONSIGNACION: document.getElementById('conf-ABONO_CAJA').value, // Reutilizamos
+        ESPECIAL: document.getElementById('conf-ESPECIAL').value
     };
 
     const res = await fetch(`${API_URL}/../admin/config-whatsapp`, {
@@ -1765,5 +1770,77 @@ async function reversarDuplicado(id) {
     } else {
         // Si cancela, volvemos a abrir la ventana de duplicados para que no se pierda la lista
         escanearDuplicados();
+    }
+}
+
+async function cargarTransaccionesEspeciales() {
+    const inicio = document.getElementById('esp-inicio').value;
+    const fin = document.getElementById('esp-fin').value;
+    const tbody = document.getElementById('tabla-especiales');
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Cargando...</td></tr>';
+
+    let url = `${API_URL}/transacciones-especiales`;
+    if(inicio && fin) url += `?fechaInicio=${inicio}&fechaFin=${fin}`;
+
+    try {
+        const res = await fetch(url);
+        const datos = await res.json();
+        tbody.innerHTML = '';
+
+        if(datos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">No hay recargas en este rango.</td></tr>';
+            return;
+        }
+
+        datos.forEach(tx => {
+            const fecha = moment(tx.fecha_transaccion).format('YYYY-MM-DD HH:mm');
+            const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
+            
+            tbody.innerHTML += `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-5 py-3 text-xs text-gray-500">${fecha}</td>
+                    <td class="px-5 py-3 font-bold text-gray-700">${tx.nombre_completo}</td>
+                    <td class="px-5 py-3">
+                        <div class="text-xs">C.C: <span class="font-bold">${tx.cedula_recarga}</span></div>
+                        <div class="text-[10px] text-gray-500">Titular: ${tx.nombre_titular}</div>
+                        <div class="text-[9px] text-gray-400">Ref: ${tx.referencia_externa}</div>
+                    </td>
+                    <td class="px-5 py-3 text-right font-mono font-bold text-green-600">${monto}</td>
+                </tr>`;
+        });
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">Error al cargar.</td></tr>';
+    }
+}
+
+async function exportarEspecialesExcel() {
+    const inicio = document.getElementById('esp-inicio').value;
+    const fin = document.getElementById('esp-fin').value;
+
+    if (!inicio || !fin) return Swal.fire('Aviso', 'Selecciona las fechas primero', 'warning');
+
+    try {
+        const res = await fetch(`${API_URL}/transacciones-especiales?fechaInicio=${inicio}&fechaFin=${fin}`);
+        const datos = await res.json();
+
+        if (datos.length === 0) return Swal.fire('Aviso', 'No hay datos para exportar', 'info');
+
+        const excelData = datos.map(tx => ({
+            "Referencia": tx.referencia_externa,
+            "Fecha": moment(tx.fecha_transaccion).subtract(5, 'hours').format('YYYY-MM-DD'),
+            "Hora": moment(tx.fecha_transaccion).subtract(5, 'hours').format('HH:mm'),
+            "Agente": tx.nombre_completo,
+            "Cédula Recarga": tx.cedula_recarga,
+            "Titular Cédula": tx.nombre_titular,
+            "Valor": parseFloat(tx.monto)
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Especiales");
+        XLSX.writeFile(workbook, `Reporte_Especiales_${inicio}.xlsx`);
+
+    } catch (e) {
+        Swal.fire('Error', 'No se pudo generar el Excel', 'error');
     }
 }

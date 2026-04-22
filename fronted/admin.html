@@ -73,6 +73,9 @@
             <button onclick="navegar('usuarios')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
                 <i class="fas fa-users w-8"></i> Usuarios
             </button>
+            <button onclick="navegar('especiales')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
+                <i class="fas fa-star w-8 text-yellow-400"></i> Clientes Especiales
+            </button>
             <button onclick="navegar('descuentos')" class="w-full text-left p-3 rounded hover:bg-blue-800 transition flex items-center">
                 <i class="fas fa-percent w-8"></i> Intereses / Descuentos
             </button>
@@ -719,6 +722,13 @@
                                     <input type="number" id="conf-TRASLADO" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
                                 </div>
                             </div>
+                            <div>
+                                <label class="block text-xs font-bold text-purple-600 uppercase mb-1">⭐ Clientes Especiales</label>
+                                <div class="flex items-center bg-white rounded border px-3 py-2">
+                                    <i class="fas fa-star text-purple-500 mr-2"></i>
+                                    <input type="number" id="conf-ESPECIAL" class="w-full bg-transparent outline-none text-sm" placeholder="573..." required>
+                                </div>
+                            </div>
                 
                             <div class="col-span-1 md:col-span-2 mt-2">
                                 <button type="submit" class="w-full bg-blue-900 text-white font-bold py-3 rounded hover:bg-blue-800 transition shadow-md">
@@ -908,6 +918,40 @@
                         <i class="fas fa-download"></i> DESCARGAR EXCEL
                     </button>
                 </form>
+            </div>
+        </div>
+        <div id="vista-especiales" class="vista-seccion hidden animate-fade max-w-5xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Recargas de Clientes Especiales</h2>
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex gap-4 items-end border border-gray-200">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase">Desde</label>
+                    <input type="date" id="esp-inicio" class="border p-2 rounded text-sm w-full">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase">Hasta</label>
+                    <input type="date" id="esp-fin" class="border p-2 rounded text-sm w-full">
+                </div>
+                <button onclick="cargarTransaccionesEspeciales()" class="bg-blue-900 text-white px-4 py-2 rounded font-bold hover:bg-blue-800">
+                    Filtrar
+                </button>
+                <button onclick="exportarEspecialesExcel()" class="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700 ml-auto flex items-center">
+                    <i class="fas fa-file-excel mr-2"></i> Exportar
+                </button>
+            </div>
+        
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <table class="min-w-full leading-normal">
+                    <thead class="bg-blue-50 text-blue-900 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-5 py-3 text-left">Fecha</th>
+                            <th class="px-5 py-3 text-left">Agente (Cliente Especial)</th>
+                            <th class="px-5 py-3 text-left">Datos Recarga</th>
+                            <th class="px-5 py-3 text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-especiales" class="text-sm"></tbody>
+                </table>
             </div>
         </div>
     </main>
