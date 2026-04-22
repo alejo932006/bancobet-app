@@ -1484,4 +1484,15 @@ app.get('/api/admin/transacciones-especiales', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 3. Eliminar transacción especial (Solo borra el registro, no toca saldos)
+app.delete('/api/admin/transacciones-especiales/:id', async (req, res) => {
+    try {
+        // Borramos estrictamente de la tabla aislada
+        await pool.query('DELETE FROM transacciones_especiales WHERE id = $1', [req.params.id]);
+        res.json({ success: true, message: 'Registro especial eliminado.' });
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
 app.listen(port, () => { console.log(`Banco Server (Traslados Full) corriendo en http://localhost:${port}`); });

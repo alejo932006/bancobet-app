@@ -1802,16 +1802,21 @@ async function cargarTransaccionesEspeciales() {
             const monto = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(tx.monto);
             
             tbody.innerHTML += `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="px-5 py-3 text-xs text-gray-500">${fecha}</td>
-                    <td class="px-5 py-3 font-bold text-gray-700">${tx.nombre_completo}</td>
-                    <td class="px-5 py-3">
-                        <div class="text-xs">C.C: <span class="font-bold">${tx.cedula_recarga}</span></div>
-                        <div class="text-[10px] text-gray-500">Titular: ${tx.nombre_titular}</div>
-                        <div class="text-[9px] text-gray-400">Ref: ${tx.referencia_externa}</div>
-                    </td>
-                    <td class="px-5 py-3 text-right font-mono font-bold text-green-600">${monto}</td>
-                </tr>`;
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-5 py-3 text-xs text-gray-500">${fecha}</td>
+                <td class="px-5 py-3 font-bold text-gray-700">${tx.nombre_completo}</td>
+                <td class="px-5 py-3">
+                    <div class="text-xs">C.C: <span class="font-bold">${tx.cedula_recarga}</span></div>
+                    <div class="text-[10px] text-gray-500">Titular: ${tx.nombre_titular}</div>
+                    <div class="text-[9px] text-gray-400">Ref: ${tx.referencia_externa}</div>
+                </td>
+                <td class="px-5 py-3 text-right font-mono font-bold text-green-600">${monto}</td>
+                <td class="px-5 py-3 text-center">
+                    <button onclick="eliminarTransaccionEspecial(${tx.id})" class="text-red-400 hover:text-red-600 transition" title="Eliminar Registro">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            </tr>`;
         });
     } catch (e) {
         tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">Error al cargar.</td></tr>';
@@ -1847,5 +1852,32 @@ async function exportarEspecialesExcel() {
 
     } catch (e) {
         Swal.fire('Error', 'No se pudo generar el Excel', 'error');
+    }
+}
+
+async function eliminarTransaccionEspecial(id) {
+    const confirm = await Swal.fire({
+        title: '¿Eliminar este registro?',
+        text: "Se borrará del historial de clientes especiales. (Esto no afecta ningún saldo).",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Sí, eliminar'
+    });
+
+    if (confirm.isConfirmed) {
+        try {
+            const res = await fetch(`${API_URL}/transacciones-especiales/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (data.success) {
+                Swal.fire('Eliminado', 'El registro fue borrado.', 'success');
+                cargarTransaccionesEspeciales(); // Recargar la tabla
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo eliminar', 'error');
+            }
+        } catch (e) {
+            Swal.fire('Error', 'Fallo de conexión', 'error');
+        }
     }
 }
