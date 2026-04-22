@@ -922,9 +922,16 @@ id referencia: ${idTx}`;
 }
 
 // [NUEVO] Función para volver al estado inicial (Solo botones)
+// [MODIFICADO] Función para volver al estado inicial (Solo botones)
 function resetearVista() {
-    UI.selectOperacion.value = ""; // Reseteamos el select
-    actualizarFormulario(); // Actualizamos la UI
+    if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+        UI.selectOperacion.value = 'RECARGA'; // Mantiene la recarga seleccionada
+        actualizarFormulario(); 
+        document.getElementById('selector_casino').value = 'BETPLAY'; // Mantiene Betplay
+    } else {
+        UI.selectOperacion.value = ""; // Comportamiento normal para los demás
+        actualizarFormulario(); // Actualizamos la UI
+    }
 }
 
 function filtrarOpcionesCasino() {
