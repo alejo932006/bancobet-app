@@ -316,15 +316,20 @@ async function cargarUsuarios() {
     usuarios.forEach(u => {
         const saldo = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(u.saldo_actual);
         
-        // Estilos según estado
-        const estadoClass = u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-        const estadoTexto = u.activo ? 'ACTIVO' : 'INACTIVO';
-        const opacidad = u.activo ? '' : 'opacity-60 bg-gray-50'; // Usuarios inactivos se ven un poco apagados
+            // Estilos según estado
+            const estadoClass = u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+            const estadoTexto = u.activo ? 'ACTIVO' : 'INACTIVO';
+            const opacidad = u.activo ? '' : 'opacity-60 bg-gray-50'; // Usuarios inactivos se ven un poco apagados
 
-        const tr = `
-            <tr class="border-b border-gray-200 hover:bg-gray-50 ${opacidad}">
-                <td class="px-5 py-4 whitespace-nowrap">
-                    <div class="font-medium">${u.nombre_completo}</div>
+            // Etiqueta visual para el rol
+            const badgeRol = u.rol === 'cliente_especial' 
+                ? '<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700 ml-2">⭐ ESPECIAL</span>' 
+                : (u.rol === 'admin' ? '<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700 ml-2">ADMIN</span>' : '');
+
+            const tr = `
+                <tr class="border-b border-gray-200 hover:bg-gray-50 ${opacidad}">
+                    <td class="px-5 py-4 whitespace-nowrap">
+                        <div class="font-medium flex items-center">${u.nombre_completo} ${badgeRol}</div>
                     <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${estadoClass}">${estadoTexto}</span>
                 </td>
                 <td class="px-5 py-4 text-gray-500 whitespace-nowrap">${u.cedula}</td>
@@ -685,12 +690,12 @@ async function editarUsuario(id) {
                     </p>
                     
                     <div class="grid grid-cols-2 gap-3 mb-3">
-                        <div>
+<div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">Rol</label>
                             <select id="edit-rol" class="w-full px-3 py-2 rounded border border-gray-300 focus:border-blue-500 outline-none bg-white">
                                 <option value="cliente" ${u.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
                                 <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
-                                <option value="cliente_especial">⭐ Cliente Especial (Solo Recargas Aisladas)</option>
+                                <option value="cliente_especial" ${u.rol === 'cliente_especial' ? 'selected' : ''}>⭐ Cliente Especial (Solo Recargas Aisladas)</option>
                             </select>
                         </div>
                         <div>
