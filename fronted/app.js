@@ -797,6 +797,54 @@ id referencia: ${idTx}`;
 
             // [MODIFICACIÓN] Bloqueo agresivo para obligar el envío a WhatsApp
             if (data.whatsapp_destino) {
+
+                // === INICIO NUEVA LÓGICA: CLIENTE ESPECIAL ===
+                if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+                    Swal.fire({
+                        title: '¡Recarga Registrada!',
+                        html: `
+                            <div class="text-left">
+                                <p class="mb-3 text-sm text-gray-600">Copia la siguiente información y envíala manualmente al número de WhatsApp asignado por la empresa.</p>
+                                <div class="bg-gray-100 p-3 rounded border text-xs font-mono whitespace-pre-wrap mt-2 max-h-40 overflow-y-auto text-gray-800 text-left">${mensajeWhatsApp}</div>
+                            </div>
+                        `,
+                        icon: 'success',
+                        showCancelButton: false,
+                        allowOutsideClick: false, // Obliga a interactuar con el botón
+                        confirmButtonText: '<i class="fas fa-copy"></i> Copiar y Finalizar',
+                        confirmButtonColor: '#25D366'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // 1. Copiar el mensaje al portapapeles
+                            navigator.clipboard.writeText(mensajeWhatsApp).then(() => {
+                                // Mostrar pequeña alerta de confirmación
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '¡Copiado!',
+                                    text: 'El mensaje ha sido copiado a tu portapapeles.',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                            }).catch(err => {
+                                console.error('Error al copiar al portapapeles:', err);
+                            });
+
+                            // 2. Finalizar y resetear la vista
+                            UI.form.reset(); 
+                            resetearVista(); 
+                            sincronizarDatosUsuario(); 
+                            cambiarVista('operar'); // Mantiene al cliente especial en la vista de operar
+                            
+                            // 3. Reactivar el botón de confirmación
+                            btn.disabled = false; 
+                            btn.innerText = "Confirmar Operación";
+                        }
+                    });
+                    
+                    // Retornamos para que NO se ejecute la lógica de abrir WhatsApp web automáticamente
+                    return; 
+                }
+                // === FIN NUEVA LÓGICA: CLIENTE ESPECIAL ===
                             
                 let enviado = false;
 
