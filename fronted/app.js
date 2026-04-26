@@ -130,13 +130,17 @@ async function sincronizarDatosUsuario() {
 }
 
 function actualizarUIUsuario(u) {
-    document.getElementById('userNombre').innerHTML = `<i class="fas fa-user mr-2"></i>${u.nombre_completo.split(' ')[0]}`;
+    document.getElementById('userNombre').innerHTML = `<i class="fas fa-user mr-2 text-blue-300"></i>${u.nombre_completo.split(' ')[0]}`;
     
     if (u.rol === 'cliente_especial') {
         // Ocultar saldo y accesos directos
         document.getElementById('userSaldo').parentElement.style.display = 'none';
         document.getElementById('panel-accesos-rapidos').style.display = 'none';
-        document.getElementById('btn-nav-historial').style.display = 'none'; // Opcional: Ocultar historial si no lo necesitan ver
+        document.getElementById('btn-nav-historial').style.display = 'none';
+        
+        // Mostrar botón de recuperación
+        const btnRecuperar = document.getElementById('btn-recuperar-mensaje');
+        if(btnRecuperar) btnRecuperar.classList.remove('hidden');
         
         // Forzar vista de recarga Betplay
         UI.selectOperacion.value = 'RECARGA';
@@ -146,6 +150,10 @@ function actualizarUIUsuario(u) {
         document.getElementById('tipoOperacion').disabled = true;
     } else {
         document.getElementById('userSaldo').innerText = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(u.saldo_actual);
+        
+        // Asegurarnos de que el botón esté oculto para clientes normales
+        const btnRecuperar = document.getElementById('btn-recuperar-mensaje');
+        if(btnRecuperar) btnRecuperar.classList.add('hidden');
     }
 }
 
@@ -798,53 +806,26 @@ id referencia: ${idTx}`;
             // [MODIFICACIÓN] Bloqueo agresivo para obligar el envío a WhatsApp
             if (data.whatsapp_destino) {
 
-                // === INICIO NUEVA LÓGICA: CLIENTE ESPECIAL ===
-                if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
-                    Swal.fire({
-                        title: '¡Recarga Registrada!',
-                        html: `
-                            <div class="text-left">
-                                <p class="mb-3 text-sm text-gray-600">Copia la siguiente información y envíala manualmente al número de WhatsApp asignado por la empresa.</p>
-                                <div class="bg-gray-100 p-3 rounded border text-xs font-mono whitespace-pre-wrap mt-2 max-h-40 overflow-y-auto text-gray-800 text-left">${mensajeWhatsApp}</div>
-                            </div>
-                        `,
-                        icon: 'success',
-                        showCancelButton: false,
-                        allowOutsideClick: false, // Obliga a interactuar con el botón
-                        confirmButtonText: '<i class="fas fa-copy"></i> Copiar y Finalizar',
-                        confirmButtonColor: '#25D366'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            // 1. Copiar el mensaje al portapapeles
-                            navigator.clipboard.writeText(mensajeWhatsApp).then(() => {
-                                // Mostrar pequeña alerta de confirmación
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: '¡Copiado!',
-                                    text: 'El mensaje ha sido copiado a tu portapapeles.',
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                            }).catch(err => {
-                                console.error('Error al copiar al portapapeles:', err);
-                            });
-
-                            // 2. Finalizar y resetear la vista
-                            UI.form.reset(); 
-                            resetearVista(); 
-                            sincronizarDatosUsuario(); 
-                            cambiarVista('operar'); // Mantiene al cliente especial en la vista de operar
-                            
-                            // 3. Reactivar el botón de confirmación
-                            btn.disabled = false; 
-                            btn.innerText = "Confirmar Operación";
-                        }
-                    });
-                    
-                    // Retornamos para que NO se ejecute la lógica de abrir WhatsApp web automáticamente
-                    return; 
-                }
-                // === FIN NUEVA LÓGICA: CLIENTE ESPECIAL ===
+                    // === INICIO NUEVA LÓGICA: CLIENTE ESPECIAL ===
+                    if (CONFIG.usuario && CONFIG.usuario.rol === 'cliente_especial') {
+                                        
+                        // 1. Guardamos el mensaje en la memoria del navegador de forma permanente
+                        localStorage.setItem('ultimo_mensaje_especial', mensajeWhatsApp);
+                        
+                        // 2. Limpiamos el formulario y la vista de inmediato por seguridad
+                        UI.form.reset(); 
+                        resetearVista(); 
+                        sincronizarDatosUsuario(); 
+                        cambiarVista('operar');
+                        btn.disabled = false; 
+                        btn.innerText = "Confirmar Operación";
+                        
+                        // 3. Abrimos el modal reutilizable
+                        mostrarModalCopiarEspecial(mensajeWhatsApp);
+                        
+                        return; // Terminamos aquí
+                    }
+                    // === FIN NUEVA LÓGICA: CLIENTE ESPECIAL ===
                             
                 let enviado = false;
 
@@ -1232,6 +1213,64 @@ async function repetirRecarga(id) {
 //         grupoBanco.classList.remove('hidden');
 //     }
 // }
+
+    // --- FUNCIONES PARA RECUPERAR EL MENSAJE DEL CLIENTE ESPECIAL ---
+
+    function mostrarModalCopiarEspecial(mensajeWhatsApp) {
+        Swal.fire({
+            title: '¡Mensaje Listo!',
+            html: `
+                <div class="text-left">
+                    <p class="mb-3 text-sm text-gray-600">Haz clic en <b>Copiar Mensaje</b> y envíalo manualmente por WhatsApp.</p>
+                    <div class="bg-gray-100 p-3 rounded border text-xs font-mono whitespace-pre-wrap mt-2 max-h-40 overflow-y-auto text-gray-800 text-left">${mensajeWhatsApp}</div>
+                    
+                    <button id="btn-copiar-interno" class="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition shadow-md flex justify-center items-center gap-2">
+                        <i class="fas fa-copy"></i> Copiar Mensaje
+                    </button>
+                </div>
+            `,
+            icon: 'success',
+            showCancelButton: false,
+            allowOutsideClick: true, // Ahora sí pueden dar clic afuera, porque pueden recuperarlo
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#6B7280',
+            didOpen: () => {
+                const btnCopiar = document.getElementById('btn-copiar-interno');
+                btnCopiar.addEventListener('click', () => {
+                    navigator.clipboard.writeText(mensajeWhatsApp).then(() => {
+                        btnCopiar.innerHTML = '<i class="fas fa-check-circle"></i> ¡Copiado correctamente!';
+                        btnCopiar.classList.replace('bg-green-500', 'bg-blue-600');
+                        btnCopiar.classList.replace('hover:bg-green-600', 'hover:bg-blue-700');
+                        
+                        setTimeout(() => {
+                            btnCopiar.innerHTML = '<i class="fas fa-copy"></i> Volver a Copiar';
+                            btnCopiar.classList.replace('bg-blue-600', 'bg-green-500');
+                            btnCopiar.classList.replace('hover:bg-blue-700', 'hover:bg-green-600');
+                        }, 3000);
+                    }).catch(err => {
+                        btnCopiar.innerHTML = '<i class="fas fa-times-circle"></i> Error al copiar';
+                        btnCopiar.classList.replace('bg-green-500', 'bg-red-500');
+                    });
+                });
+            }
+        });
+    }
+
+    function recuperarUltimoMensaje() {
+        // Buscamos el mensaje guardado en la memoria del navegador
+        const mensajeGuardado = localStorage.getItem('ultimo_mensaje_especial');
+        
+        if (mensajeGuardado) {
+            mostrarModalCopiarEspecial(mensajeGuardado);
+        } else {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin registro',
+                text: 'No tienes ninguna recarga reciente guardada en este dispositivo.',
+                confirmButtonColor: '#1e3a8a'
+            });
+        }
+    }
 
 
 function cerrarSesion() { if(confirm('¿Salir?')) { localStorage.removeItem('usuario_banco'); window.location.href='login.html'; } }
