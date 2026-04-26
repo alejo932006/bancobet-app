@@ -1220,12 +1220,12 @@ async function repetirRecarga(id) {
         Swal.fire({
             title: '¡Mensaje Listo!',
             html: `
-                <div class="text-left">
-                    <p class="mb-3 text-sm text-gray-600">Haz clic en <b>Copiar Mensaje</b> y envíalo manualmente por WhatsApp.</p>
-                    <div class="bg-gray-100 p-3 rounded border text-xs font-mono whitespace-pre-wrap mt-2 max-h-40 overflow-y-auto text-gray-800 text-left">${mensajeWhatsApp}</div>
+                <div class="text-center">
+                    <p class="mb-3 text-sm text-gray-600">Haz clic en <b>Copiar</b> y envíalo manualmente por WhatsApp.</p>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-[11px] font-mono whitespace-pre-wrap mt-2 max-h-40 overflow-y-auto text-gray-700 text-left shadow-inner">${mensajeWhatsApp}</div>
                     
-                    <button id="btn-copiar-interno" class="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition shadow-md flex justify-center items-center gap-2">
-                        <i class="fas fa-copy"></i> Copiar Mensaje
+                    <button id="btn-copiar-interno" class="mt-4 mx-auto bg-[#25D366] hover:bg-[#1EBE5D] text-white text-sm font-bold py-2.5 px-6 rounded-full shadow-md hover:shadow-lg transition-all transform active:scale-95 flex justify-center items-center gap-2">
+                        <i class="fas fa-copy"></i> Copiar
                     </button>
                 </div>
             `,
